@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      target: builder
+    command: ["go", "run", "./src"]
+    entrypoint: []
+    environment:
+      PORT: "8080"
+    volumes:
+      - .:/src

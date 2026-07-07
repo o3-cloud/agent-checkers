@@ -1,0 +1,30 @@
+# Quality gates (run before committing)
+- Run tests: `make test`
+- Run linter: `make lint`
+- Format code: `make fmt`
+- Run all checks: `make check`
+
+# Code style
+- Follow the Go spec: docs/specs/language/go.md
+- Use conventional commits: docs/specs/practices/conventional-commits.md
+- Write tests first (TDD): docs/specs/practices/tdd.md
+
+# Go-specific rules
+- Use gofmt and goimports for formatting
+- Run `go test -race` for concurrency safety
+- Check errors at every call site
+- Wrap errors with `fmt.Errorf("...: %w", err)`
+- Pass context.Context as first parameter for I/O functions
+- No panics in library code for expected failures
+
+# Commit messages
+- Follow conventional commits format
+- Reference spec rules when applicable
+
+# Agent-checkers specific rules
+- Game engine (internal/app/) has no external dependencies (no HTTP, no DB)
+- All moves must be validated through rules/validator.go
+- Board coordinates: 0-indexed, row 0 is black's home row
+- Red always moves first
+- Captures are mandatory — if a jump is available, it must be taken
+- All new features need corresponding BDD tests in tests/features/

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 10
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install quality tools
+        run: make install-tools
+      - name: Check formatting
+        run: make fmt-check
+      - name: Run tests with race detection
+        run: make test
+      - name: Enforce coverage threshold
+        run: make coverage
+      - name: Run go vet
+        run: make vet
+      - name: Run golangci-lint
+        run: make lint
+      - name: Scan dependencies
+        run: make vuln || echo "::warning::govulncheck found vulnerabilities - review and address if applicable"
+        continue-on-error: true
+      - name: Lint commit message
+        run: |
+          npx --yes --package=@commitlint/cli@19.8.1 --package=@commitlint/config-conventional@19.8.1 \
+            commitlint --from HEAD~1 --to HEAD --config commitlint.config.cjs
+      - name: Build Docker image
+        run: make docker-build
