@@ -10,7 +10,7 @@ import (
 
 func TestValidateMove_SimpleMove(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	// Red's first move - valid simple move
 	from := board.Position{Row: 2, Col: 3}
@@ -24,7 +24,7 @@ func TestValidateMove_SimpleMove(t *testing.T) {
 
 func TestValidateMove_WrongTurn(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	// Try to move black piece on red's turn
 	from := board.Position{Row: 5, Col: 2}
@@ -38,7 +38,7 @@ func TestValidateMove_WrongTurn(t *testing.T) {
 
 func TestValidateMove_InvalidDirection(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	// Try to move non-king backward (red piece moving "down")
 	from := board.Position{Row: 2, Col: 3}
@@ -52,7 +52,7 @@ func TestValidateMove_InvalidDirection(t *testing.T) {
 
 func TestValidateMove_KingCanMoveBackward(t *testing.T) {
 	v := NewValidator()
-	g := newTestGameWithKing()
+	g := newTestGameWithKing(t)
 
 	// King can move backward
 	from := board.Position{Row: 4, Col: 3}
@@ -66,7 +66,7 @@ func TestValidateMove_KingCanMoveBackward(t *testing.T) {
 
 func TestValidateMove_Capture(t *testing.T) {
 	v := NewValidator()
-	g := newTestGameWithCapture()
+	g := newTestGameWithCapture(t)
 
 	// Red captures black piece
 	from := board.Position{Row: 2, Col: 3}
@@ -80,7 +80,7 @@ func TestValidateMove_Capture(t *testing.T) {
 
 func TestValidateMove_MandatoryCapture(t *testing.T) {
 	v := NewValidator()
-	g := newTestGameWithCapture()
+	g := newTestGameWithCapture(t)
 
 	// A simple move when capture is available should be rejected
 	from := board.Position{Row: 2, Col: 1}
@@ -104,7 +104,7 @@ func TestValidateMove_MandatoryCapture(t *testing.T) {
 
 func TestValidateMove_EmptySource(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	from := board.Position{Row: 3, Col: 3} // Empty square
 	to := board.Position{Row: 4, Col: 4}
@@ -117,7 +117,7 @@ func TestValidateMove_EmptySource(t *testing.T) {
 
 func TestValidateMove_OccupiedDestination(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	from := board.Position{Row: 2, Col: 3}
 	to := board.Position{Row: 5, Col: 2} // Occupied by black
@@ -130,7 +130,7 @@ func TestValidateMove_OccupiedDestination(t *testing.T) {
 
 func TestValidateMove_NonDiagonalMove(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	from := board.Position{Row: 2, Col: 3}
 	to := board.Position{Row: 3, Col: 3} // Same column
@@ -143,7 +143,7 @@ func TestValidateMove_NonDiagonalMove(t *testing.T) {
 
 func TestGetValidMoves(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	// Get valid moves for a red piece at starting position
 	pos := board.Position{Row: 2, Col: 3}
@@ -161,7 +161,7 @@ func TestGetValidMoves(t *testing.T) {
 
 func TestGetAllValidMoves(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	moves, err := v.GetAllValidMoves(g)
 	if err != nil {
@@ -176,7 +176,7 @@ func TestGetAllValidMoves(t *testing.T) {
 
 func TestHasCaptures(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	// No captures available at start
 	if v.HasCaptures(g, piece.Red) {
@@ -184,7 +184,7 @@ func TestHasCaptures(t *testing.T) {
 	}
 
 	// Create a capture situation
-	g2 := newTestGameWithCapture()
+	g2 := newTestGameWithCapture(t)
 	if !v.HasCaptures(g2, piece.Red) {
 		t.Error("HasCaptures() should be true when capture is available")
 	}
@@ -192,7 +192,7 @@ func TestHasCaptures(t *testing.T) {
 
 func TestExecuteMove(t *testing.T) {
 	v := NewValidator()
-	g := newTestGame()
+	g := newTestGame(t)
 
 	from := board.Position{Row: 2, Col: 3}
 	to := board.Position{Row: 3, Col: 4}
@@ -217,7 +217,7 @@ func TestExecuteMove(t *testing.T) {
 
 func TestExecuteMove_Capture(t *testing.T) {
 	v := NewValidator()
-	g := newTestGameWithCapture()
+	g := newTestGameWithCapture(t)
 
 	from := board.Position{Row: 2, Col: 3}
 	to := board.Position{Row: 4, Col: 5}
@@ -249,7 +249,7 @@ func TestExecuteMove_Capture(t *testing.T) {
 
 func TestExecuteMove_Promotion(t *testing.T) {
 	v := NewValidator()
-	g := newTestGameWithPromotion()
+	g := newTestGameWithPromotion(t)
 
 	// Red piece at row 6 can promote by moving to row 7
 	from := board.Position{Row: 6, Col: 3}
@@ -280,17 +280,19 @@ func TestExecuteMove_Promotion(t *testing.T) {
 
 // Helper functions for test setup
 
-func newTestGame() *game.Game {
+func newTestGame(t *testing.T) *game.Game {
+	t.Helper()
 	g := game.NewGame()
-	g.AddPlayer(&game.Player{ID: "p1", Name: "Red", Type: "human"})
-	g.AddPlayer(&game.Player{ID: "p2", Name: "Black", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p1", Name: "Red", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p2", Name: "Black", Type: "human"})
 	return g
 }
 
-func newTestGameWithKing() *game.Game {
+func newTestGameWithKing(t *testing.T) *game.Game {
+	t.Helper()
 	g := game.NewGame()
-	g.AddPlayer(&game.Player{ID: "p1", Name: "Red", Type: "human"})
-	g.AddPlayer(&game.Player{ID: "p2", Name: "Black", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p1", Name: "Red", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p2", Name: "Black", Type: "human"})
 
 	// Promote a red piece to king
 	kingPiece := &piece.Piece{ID: "king", Color: piece.Red, IsKing: true}
@@ -299,10 +301,11 @@ func newTestGameWithKing() *game.Game {
 	return g
 }
 
-func newTestGameWithCapture() *game.Game {
+func newTestGameWithCapture(t *testing.T) *game.Game {
+	t.Helper()
 	g := game.NewGame()
-	g.AddPlayer(&game.Player{ID: "p1", Name: "Red", Type: "human"})
-	g.AddPlayer(&game.Player{ID: "p2", Name: "Black", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p1", Name: "Red", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p2", Name: "Black", Type: "human"})
 
 	// Set up a capture situation:
 	// Red piece at (2,3), Black piece at (3,4), Empty at (4,5)
@@ -314,10 +317,11 @@ func newTestGameWithCapture() *game.Game {
 	return g
 }
 
-func newTestGameWithPromotion() *game.Game {
+func newTestGameWithPromotion(t *testing.T) *game.Game {
+	t.Helper()
 	g := game.NewGame()
-	g.AddPlayer(&game.Player{ID: "p1", Name: "Red", Type: "human"})
-	g.AddPlayer(&game.Player{ID: "p2", Name: "Black", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p1", Name: "Red", Type: "human"})
+	addTestPlayer(t, g, &game.Player{ID: "p2", Name: "Black", Type: "human"})
 
 	// Set up promotion situation:
 	// Red piece at row 6 (one move from promotion)
@@ -326,4 +330,11 @@ func newTestGameWithPromotion() *game.Game {
 	g.Board = b
 
 	return g
+}
+
+func addTestPlayer(t *testing.T, g *game.Game, p *game.Player) {
+	t.Helper()
+	if err := g.AddPlayer(p); err != nil {
+		t.Fatalf("AddPlayer(%s) error = %v", p.ID, err)
+	}
 }

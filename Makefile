@@ -35,7 +35,7 @@ test: ## Run tests with race detection (spec: go.md:12)
 	go test -race $(GO_PACKAGES)
 
 coverage: ## Enforce application line coverage (spec: unit-testing.md:15)
-	go test -race -coverpkg=./internal/... -coverprofile=$(COVERAGE_FILE) ./tests/...
+	go test -race -coverpkg=./internal/... -coverprofile=$(COVERAGE_FILE) ./internal/...
 	@coverage=$$(go tool cover -func=$(COVERAGE_FILE) | awk '/^total:/ {gsub("%", "", $$3); print $$3}'); \
 	awk -v coverage="$$coverage" -v threshold="$(COVERAGE_THRESHOLD)" 'BEGIN { \
 		printf "Total coverage: %.1f%% (minimum: %.1f%%)\n", coverage, threshold; \

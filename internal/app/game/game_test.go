@@ -3,6 +3,7 @@ package game
 import (
 	"testing"
 
+	"github.com/stackable-specs/agent-checkers/internal/app/board"
 	"github.com/stackable-specs/agent-checkers/internal/app/piece"
 )
 
@@ -102,8 +103,8 @@ func TestGetPlayer(t *testing.T) {
 	g := NewGame()
 	p1 := &Player{ID: "p1", Name: "Alice", Type: "human"}
 	p2 := &Player{ID: "p2", Name: "Bob", Type: "human"}
-	g.AddPlayer(p1)
-	g.AddPlayer(p2)
+	addPlayer(t, g, p1)
+	addPlayer(t, g, p2)
 
 	if got := g.GetPlayer("p1"); got != p1 {
 		t.Error("GetPlayer(p1) did not return correct player")
@@ -120,8 +121,8 @@ func TestCurrentPlayer(t *testing.T) {
 	g := NewGame()
 	p1 := &Player{ID: "p1", Name: "Alice", Type: "human"}
 	p2 := &Player{ID: "p2", Name: "Bob", Type: "human"}
-	g.AddPlayer(p1)
-	g.AddPlayer(p2)
+	addPlayer(t, g, p1)
+	addPlayer(t, g, p2)
 
 	// Red moves first
 	if got := g.CurrentPlayer(); got != p1 {
@@ -221,8 +222,8 @@ func TestOfferAndAcceptDraw(t *testing.T) {
 	g := NewGame()
 	p1 := &Player{ID: "p1", Name: "Alice", Type: "human"}
 	p2 := &Player{ID: "p2", Name: "Bob", Type: "human"}
-	g.AddPlayer(p1)
-	g.AddPlayer(p2)
+	addPlayer(t, g, p1)
+	addPlayer(t, g, p2)
 
 	// Player 1 offers draw
 	err := g.OfferDraw("p1")
@@ -256,8 +257,8 @@ func TestResign(t *testing.T) {
 	g := NewGame()
 	p1 := &Player{ID: "p1", Name: "Alice", Type: "human"}
 	p2 := &Player{ID: "p2", Name: "Bob", Type: "human"}
-	g.AddPlayer(p1)
-	g.AddPlayer(p2)
+	addPlayer(t, g, p1)
+	addPlayer(t, g, p2)
 
 	// Player 1 (red) resigns
 	err := g.Resign("p1")
@@ -279,8 +280,8 @@ func TestClone(t *testing.T) {
 	g := NewGame()
 	p1 := &Player{ID: "p1", Name: "Alice", Type: "human"}
 	p2 := &Player{ID: "p2", Name: "Bob", Type: "human"}
-	g.AddPlayer(p1)
-	g.AddPlayer(p2)
+	addPlayer(t, g, p1)
+	addPlayer(t, g, p2)
 
 	clone := g.Clone()
 
@@ -311,22 +312,22 @@ func TestClone(t *testing.T) {
 func TestMakeMoveErrors(t *testing.T) {
 	tests := []struct {
 		name      string
-		setupGame func() *Game
+		setupGame func(t *testing.T) *Game
 		playerID  string
 		shouldErr bool
 	}{
 		{
 			name:      "game not active",
-			setupGame: func() *Game { return NewGame() }, // StatusWaiting
+			setupGame: func(t *testing.T) *Game { return NewGame() }, // StatusWaiting
 			playerID:  "p1",
 			shouldErr: true,
 		},
 		{
 			name: "player not in game",
-			setupGame: func() *Game {
+			setupGame: func(t *testing.T) *Game {
 				g := NewGame()
-				g.AddPlayer(&Player{ID: "p1", Name: "Alice", Type: "human"})
-				g.AddPlayer(&Player{ID: "p2", Name: "Bob", Type: "human"})
+				addPlayer(t, g, &Player{ID: "p1", Name: "Alice", Type: "human"})
+				addPlayer(t, g, &Player{ID: "p2", Name: "Bob", Type: "human"})
 				return g
 			},
 			playerID:  "p3",
@@ -334,10 +335,10 @@ func TestMakeMoveErrors(t *testing.T) {
 		},
 		{
 			name: "wrong turn",
-			setupGame: func() *Game {
+			setupGame: func(t *testing.T) *Game {
 				g := NewGame()
-				g.AddPlayer(&Player{ID: "p1", Name: "Alice", Type: "human"})
-				g.AddPlayer(&Player{ID: "p2", Name: "Bob", Type: "human"})
+				addPlayer(t, g, &Player{ID: "p1", Name: "Alice", Type: "human"})
+				addPlayer(t, g, &Player{ID: "p2", Name: "Bob", Type: "human"})
 				return g
 			},
 			playerID:  "p2", // Black, but it's red's turn
@@ -347,7 +348,7 @@ func TestMakeMoveErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := tt.setupGame()
+			g := tt.setupGame(t)
 			err := g.MakeMove(tt.playerID, board.Position{Row: 2, Col: 3}, board.Position{Row: 3, Col: 4})
 			if tt.shouldErr && err == nil {
 				t.Error("MakeMove() expected error, got nil")
@@ -356,5 +357,12 @@ func TestMakeMoveErrors(t *testing.T) {
 				t.Errorf("MakeMove() unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func addPlayer(t *testing.T, g *Game, p *Player) {
+	t.Helper()
+	if err := g.AddPlayer(p); err != nil {
+		t.Fatalf("AddPlayer(%s) error = %v", p.ID, err)
 	}
 }

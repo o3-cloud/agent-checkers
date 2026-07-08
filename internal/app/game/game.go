@@ -50,12 +50,12 @@ type Result struct {
 
 // Move represents a single move in the game.
 type Move struct {
-	From      board.Position `json:"from"`
-	To        board.Position `json:"to"`
-	PlayerID  string         `json:"player_id"`
-	Timestamp time.Time      `json:"timestamp"`
+	From      board.Position   `json:"from"`
+	To        board.Position   `json:"to"`
+	PlayerID  string           `json:"player_id"`
+	Timestamp time.Time        `json:"timestamp"`
 	Captured  []board.Position `json:"captured,omitempty"` // Positions of captured pieces
-	Promoted  bool           `json:"promoted"` // Whether the piece was promoted
+	Promoted  bool             `json:"promoted"`            // Whether the piece was promoted
 }
 
 // Player represents a checkers player.
@@ -68,16 +68,16 @@ type Player struct {
 
 // Game represents a checkers game session.
 type Game struct {
-	ID          string      `json:"id"`
+	ID          string       `json:"id"`
 	Board       *board.Board `json:"board"`
-	RedPlayer   *Player     `json:"red_player,omitempty"`
-	BlackPlayer *Player     `json:"black_player,omitempty"`
-	CurrentTurn piece.Color `json:"current_turn"`
-	Status      Status      `json:"status"`
-	Moves       []Move      `json:"moves"`
-	Result      *Result     `json:"result,omitempty"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	RedPlayer   *Player      `json:"red_player,omitempty"`
+	BlackPlayer *Player      `json:"black_player,omitempty"`
+	CurrentTurn piece.Color  `json:"current_turn"`
+	Status      Status       `json:"status"`
+	Moves       []Move       `json:"moves"`
+	Result      *Result      `json:"result,omitempty"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
 }
 
 // NewGame creates a new game with an initial board position.
@@ -273,7 +273,12 @@ func (g *Game) Clone() *Game {
 		UpdatedAt:   g.UpdatedAt,
 	}
 
-	copy(clone.Moves, g.Moves)
+	for i, move := range g.Moves {
+		clone.Moves[i] = move
+		if move.Captured != nil {
+			clone.Moves[i].Captured = append([]board.Position(nil), move.Captured...)
+		}
+	}
 
 	if g.RedPlayer != nil {
 		clone.RedPlayer = &Player{
@@ -295,8 +300,9 @@ func (g *Game) Clone() *Game {
 
 	if g.Result != nil {
 		clone.Result = &Result{
-			Winner: g.Result.Winner,
-			Reason: g.Result.Reason,
+			Winner:   g.Result.Winner,
+			Reason:   g.Result.Reason,
+			DrawOffe: g.Result.DrawOffe,
 		}
 	}
 
