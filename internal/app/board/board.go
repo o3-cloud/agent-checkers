@@ -161,9 +161,10 @@ func (b *Board) CountPieces() (red, black int) {
 		for col := 0; col < 8; col++ {
 			p := b.squares[row][col]
 			if p != nil {
-				if p.Color == piece.Red {
+				switch p.Color {
+				case piece.Red:
 					red++
-				} else if p.Color == piece.Black {
+				case piece.Black:
 					black++
 				}
 			}

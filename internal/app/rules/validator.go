@@ -91,8 +91,9 @@ func (v *Validator) ValidateMove(g *game.Game, from, to board.Position) error {
 		}
 	}
 
-	// Check for capture
-	if absRowDiff == 2 {
+	// Check for capture based on distance
+	switch absRowDiff {
+	case 2:
 		// This is a capture move
 		capturedPos := board.Position{
 			Row: from.Row + rowDiff/2,
@@ -105,12 +106,12 @@ func (v *Validator) ValidateMove(g *game.Game, from, to board.Position) error {
 		if captured.Color == p.Color {
 			return &ValidationError{Message: "cannot capture your own piece"}
 		}
-	} else if absRowDiff == 1 {
+	case 1:
 		// Simple move - check if captures are available (mandatory capture rule)
 		if v.HasCaptures(g, g.CurrentTurn) {
 			return &ValidationError{Message: "a capture is available, you must capture"}
 		}
-	} else {
+	default:
 		// Distance > 2 is invalid
 		return &ValidationError{Message: "invalid move distance"}
 	}
