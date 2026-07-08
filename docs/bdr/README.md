@@ -17,6 +17,7 @@ with acceptance criteria a black-box observer can confirm.
 | [007](007-real-time-updates.md) | Real-Time Game Updates | Accepted |
 | [008](008-cli-interface.md) | Command-Line Interface | Accepted |
 | [009](009-concurrent-games.md) | Concurrent Games | Accepted |
+| [010](010-openapi-specification.md) | OpenAPI Specification and Discovery | Proposed |
 
 ## Summary
 

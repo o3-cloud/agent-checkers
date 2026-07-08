@@ -701,3 +701,83 @@ agent-checkers/
 │   └── integration/   # Integration tests
 └── verify/            # Verification scripts
 ```
+
+---
+
+## Feature: OpenAPI Specification
+
+### Scenario: Client fetches OpenAPI JSON spec
+```gherkin
+Feature: OpenAPI Specification
+  As an API client (human developer or AI agent)
+  I want to fetch a machine-readable OpenAPI specification
+  So that I can discover available operations and schemas without reading source code
+
+  Background:
+    Given the game server is running on port 8080
+
+  Scenario: Fetch OpenAPI JSON
+    When I send a GET request to "/openapi.json"
+    Then the response status should be 200
+    And the response Content-Type should be "application/json"
+    And the response body should be valid OpenAPI 3.1 JSON
+    And the info.title should be "Agent Checkers API"
+    And the info.version should match the application version
+
+  Scenario: Fetch OpenAPI YAML
+    When I send a GET request to "/openapi.yaml"
+    Then the response status should be 200
+    And the response Content-Type should be "application/yaml"
+    And the response body should be valid OpenAPI 3.1 YAML
+
+  Scenario: All endpoints are documented
+    Given the OpenAPI spec is fetched from "/openapi.json"
+    When the paths object is inspected
+    Then it should include entries for:
+      | method | path                          |
+      | POST   | /api/v1/games                 |
+      | POST   | /api/v1/games/{id}/join       |
+      | GET    | /api/v1/games/{id}            |
+      | DELETE | /api/v1/games/{id}            |
+      | POST   | /api/v1/games/{id}/draw       |
+      | POST   | /api/v1/games/{id}/moves      |
+      | GET    | /api/v1/games/{id}/moves      |
+      | GET    | /api/v1/games/{id}/valid-moves|
+      | GET    | /health                      |
+
+  Scenario: Reusable component schemas are defined
+    Given the OpenAPI spec is fetched from "/openapi.json"
+    When the components.schemas object is inspected
+    Then it should include definitions for:
+      | schema              |
+      | CreateGameRequest   |
+      | JoinGameRequest     |
+      | MoveRequest         |
+      | GameState           |
+      | PlayerResponse      |
+      | ErrorResponse       |
+      | MoveResponse        |
+
+  Scenario: Error responses are documented
+    Given the OpenAPI spec is fetched from "/openapi.json"
+    When the path "POST /api/v1/games/{id}/moves" is inspected
+    Then it should document responses for:
+      | status | description                     |
+      | 200    | successful move                 |
+      | 400    | invalid move, wrong turn        |
+      | 404    | game not found                   |
+      | 500    | internal server error           |
+
+  Scenario: AI agent discovers API via OpenAPI
+    Given an AI agent connects to the server for the first time
+    When the agent fetches "GET /openapi.json"
+    Then the agent can determine all available operations
+    And the agent can construct valid requests from the schemas
+    And the agent can interpret responses using the documented schemas
+
+  Scenario: Static spec file exists in repository
+    Given the repository is cloned
+    When the docs/openapi.yaml file is inspected
+    Then it should be valid OpenAPI 3.1 YAML
+    And it should match the runtime spec served at /openapi.json
+```

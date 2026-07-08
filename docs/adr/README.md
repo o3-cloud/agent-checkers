@@ -15,6 +15,7 @@ Format and lifecycle rules: [`docs/specs/practices/madr.md`](../specs/practices/
 || [006](006-game-engine-architecture.md) | Game Engine Architecture | Proposed |
 || [007](007-interface-layers.md) | Interface Layers (Web, API, CLI, MCP) | Proposed |
 || [008](008-state-management.md) | State Management (In-Memory vs Redis) | Proposed |
+| [009](009-openapi-specification.md) | OpenAPI Specification and Discovery | Proposed |
 
 ## Authoring
 
