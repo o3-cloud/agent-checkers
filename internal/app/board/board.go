@@ -221,8 +221,8 @@ func (b *Board) ToJSON() [][]interface{} {
 			p := b.squares[row][col]
 			if p != nil {
 				result[row][col] = map[string]interface{}{
-					"id":     p.ID,
-					"color":  p.Color.String(),
+					"id":      p.ID,
+					"color":   p.Color.String(),
 					"is_king": p.IsKing,
 				}
 			}

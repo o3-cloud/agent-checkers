@@ -43,8 +43,8 @@ func (s Status) String() string {
 
 // Result represents the outcome of a completed game.
 type Result struct {
-	Winner   string `json:"winner"`   // Player ID of the winner
-	Reason   string `json:"reason"`   // Reason for game end
+	Winner   string `json:"winner"` // Player ID of the winner
+	Reason   string `json:"reason"` // Reason for game end
 	DrawOffe string `json:"draw_offer,omitempty"`
 }
 
@@ -55,15 +55,15 @@ type Move struct {
 	PlayerID  string           `json:"player_id"`
 	Timestamp time.Time        `json:"timestamp"`
 	Captured  []board.Position `json:"captured,omitempty"` // Positions of captured pieces
-	Promoted  bool             `json:"promoted"`            // Whether the piece was promoted
+	Promoted  bool             `json:"promoted"`           // Whether the piece was promoted
 }
 
 // Player represents a checkers player.
 type Player struct {
-	ID     string     `json:"id"`
-	Name   string     `json:"name"`
-	Color  piece.Color `json:"color"`
-	Type   string     `json:"type"` // "human" or "ai"
+	ID    string      `json:"id"`
+	Name  string      `json:"name"`
+	Color piece.Color `json:"color"`
+	Type  string      `json:"type"` // "human" or "ai"
 }
 
 // Game represents a checkers game session.

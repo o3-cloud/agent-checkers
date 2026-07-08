@@ -11,15 +11,10 @@ import (
 	"github.com/stackable-specs/agent-checkers/internal/app/store"
 )
 
-type waitingPlayer struct {
-	gameID string
-}
-
-// Lobby manages waiting players and game matchmaking.
+// Lobby manages player registration and game joins.
 type Lobby struct {
-	waiting *waitingPlayer
-	store   store.GameStore
-	mu      sync.Mutex
+	store store.GameStore
+	mu    sync.Mutex
 }
 
 // New creates a lobby backed by the provided store.
@@ -27,7 +22,7 @@ func New(gameStore store.GameStore) *Lobby {
 	return &Lobby{store: gameStore}
 }
 
-// RegisterPlayer adds a player to the lobby and matches them when possible.
+// RegisterPlayer creates a new waiting game with the registered player.
 func (l *Lobby) RegisterPlayer(name string, playerType string) (*game.Game, *game.Player, error) {
 	if err := validateRegistration(name, playerType); err != nil {
 		return nil, nil, err
@@ -37,38 +32,16 @@ func (l *Lobby) RegisterPlayer(name string, playerType string) (*game.Game, *gam
 	defer l.mu.Unlock()
 
 	player := newPlayer(name, playerType)
-	if l.waiting == nil {
-		g := game.NewGame()
-		if err := g.AddPlayer(player); err != nil {
-			return nil, nil, fmt.Errorf("add first player: %w", err)
-		}
-		if err := l.store.SaveGame(g); err != nil {
-			return nil, nil, fmt.Errorf("save waiting game: %w", err)
-		}
-		if err := l.store.SavePlayer(player); err != nil {
-			return nil, nil, fmt.Errorf("save assigned player: %w", err)
-		}
-		l.waiting = &waitingPlayer{gameID: g.ID}
-		return g, player, nil
-	}
-
-	g, err := l.store.LoadGame(l.waiting.gameID)
-	if err != nil {
-		l.waiting = nil
-		return nil, nil, fmt.Errorf("load waiting game: %w", err)
-	}
+	g := game.NewGame()
 	if err := g.AddPlayer(player); err != nil {
-		l.waiting = nil
-		return nil, nil, fmt.Errorf("match waiting game: %w", err)
+		return nil, nil, fmt.Errorf("add first player: %w", err)
 	}
 	if err := l.store.SaveGame(g); err != nil {
-		return nil, nil, fmt.Errorf("save matched game: %w", err)
+		return nil, nil, fmt.Errorf("save waiting game: %w", err)
 	}
 	if err := l.store.SavePlayer(player); err != nil {
 		return nil, nil, fmt.Errorf("save assigned player: %w", err)
 	}
-
-	l.waiting = nil
 	return g, player, nil
 }
 
@@ -98,10 +71,6 @@ func (l *Lobby) JoinGame(gameID string, name string, playerType string) (*game.P
 	}
 	if err := l.store.SaveGame(g); err != nil {
 		return nil, fmt.Errorf("save game: %w", err)
-	}
-
-	if l.waiting != nil && l.waiting.gameID == gameID {
-		l.waiting = nil
 	}
 
 	return player, nil

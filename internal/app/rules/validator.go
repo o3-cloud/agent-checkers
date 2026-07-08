@@ -12,7 +12,7 @@ import (
 
 // ValidationError represents a move validation error with details.
 type ValidationError struct {
-	Message    string `json:"message"`
+	Message    string           `json:"message"`
 	ValidMoves []board.Position `json:"valid_moves,omitempty"`
 }
 

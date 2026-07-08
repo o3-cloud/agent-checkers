@@ -39,37 +39,40 @@ func TestRegisterPlayerCreatesWaitingGameForFirstPlayer(t *testing.T) {
 	}
 }
 
-func TestRegisterPlayerMatchesSecondPlayer(t *testing.T) {
+func TestRegisterPlayerCreatesSeparateWaitingGames(t *testing.T) {
 	gameStore := store.NewMemoryStore()
 	lobby := New(gameStore)
 
-	waitingGame, redPlayer, err := lobby.RegisterPlayer("Alice", "human")
+	firstGame, firstPlayer, err := lobby.RegisterPlayer("Alice", "human")
 	if err != nil {
 		t.Fatalf("RegisterPlayer(Alice) error = %v", err)
 	}
 
-	matchedGame, blackPlayer, err := lobby.RegisterPlayer("Bot", "ai")
+	secondGame, secondPlayer, err := lobby.RegisterPlayer("Bot", "ai")
 	if err != nil {
 		t.Fatalf("RegisterPlayer(Bot) error = %v", err)
 	}
 
-	if matchedGame.ID != waitingGame.ID {
-		t.Errorf("RegisterPlayer() matched game ID = %q, want %q", matchedGame.ID, waitingGame.ID)
+	if secondGame.ID == firstGame.ID {
+		t.Fatalf("RegisterPlayer() reused game ID %q, want separate waiting games", secondGame.ID)
 	}
-	if matchedGame.Status != game.StatusActive {
-		t.Errorf("RegisterPlayer() matched game status = %v, want active", matchedGame.Status)
+	if firstGame.Status != game.StatusWaiting {
+		t.Errorf("RegisterPlayer() first game status = %v, want waiting", firstGame.Status)
 	}
-	if matchedGame.RedPlayer.ID != redPlayer.ID {
-		t.Errorf("RegisterPlayer() red player changed")
+	if secondGame.Status != game.StatusWaiting {
+		t.Errorf("RegisterPlayer() second game status = %v, want waiting", secondGame.Status)
 	}
-	if matchedGame.BlackPlayer.ID != blackPlayer.ID {
-		t.Errorf("RegisterPlayer() black player ID = %q, want %q", matchedGame.BlackPlayer.ID, blackPlayer.ID)
+	if firstGame.RedPlayer.ID != firstPlayer.ID {
+		t.Errorf("RegisterPlayer() first game red player changed")
 	}
-	if blackPlayer.Color != piece.Black {
-		t.Errorf("RegisterPlayer() second player color = %v, want black", blackPlayer.Color)
+	if secondGame.RedPlayer.ID != secondPlayer.ID {
+		t.Errorf("RegisterPlayer() second game red player ID = %q, want %q", secondGame.RedPlayer.ID, secondPlayer.ID)
 	}
-	if blackPlayer.Type != "ai" {
-		t.Errorf("RegisterPlayer() second player type = %q, want ai", blackPlayer.Type)
+	if secondPlayer.Color != piece.Red {
+		t.Errorf("RegisterPlayer() second player color = %v, want red", secondPlayer.Color)
+	}
+	if secondPlayer.Type != "ai" {
+		t.Errorf("RegisterPlayer() second player type = %q, want ai", secondPlayer.Type)
 	}
 }
 
@@ -107,5 +110,52 @@ func TestJoinGameRejectsInvalidGame(t *testing.T) {
 
 	if _, err := lobby.JoinGame("missing", "Bob", "human"); err == nil {
 		t.Fatal("JoinGame() missing game error = nil, want error")
+	}
+}
+
+func TestJoinGameDoesNotAffectOtherWaitingGames(t *testing.T) {
+	gameStore := store.NewMemoryStore()
+	lobby := New(gameStore)
+
+	gameOne, playerOne, err := lobby.RegisterPlayer("P1", "human")
+	if err != nil {
+		t.Fatalf("RegisterPlayer(P1) error = %v", err)
+	}
+	gameTwo, playerThree, err := lobby.RegisterPlayer("P3", "human")
+	if err != nil {
+		t.Fatalf("RegisterPlayer(P3) error = %v", err)
+	}
+
+	playerTwo, err := lobby.JoinGame(gameOne.ID, "P2", "human")
+	if err != nil {
+		t.Fatalf("JoinGame(gameOne) error = %v", err)
+	}
+
+	loadedOne, err := gameStore.LoadGame(gameOne.ID)
+	if err != nil {
+		t.Fatalf("LoadGame(gameOne) error = %v", err)
+	}
+	if loadedOne.Status != game.StatusActive {
+		t.Errorf("gameOne status = %v, want active", loadedOne.Status)
+	}
+	if loadedOne.RedPlayer == nil || loadedOne.RedPlayer.ID != playerOne.ID {
+		t.Fatalf("gameOne red player = %#v, want P1", loadedOne.RedPlayer)
+	}
+	if loadedOne.BlackPlayer == nil || loadedOne.BlackPlayer.ID != playerTwo.ID {
+		t.Fatalf("gameOne black player = %#v, want P2", loadedOne.BlackPlayer)
+	}
+
+	loadedTwo, err := gameStore.LoadGame(gameTwo.ID)
+	if err != nil {
+		t.Fatalf("LoadGame(gameTwo) error = %v", err)
+	}
+	if loadedTwo.Status != game.StatusWaiting {
+		t.Errorf("gameTwo status = %v, want waiting", loadedTwo.Status)
+	}
+	if loadedTwo.RedPlayer == nil || loadedTwo.RedPlayer.ID != playerThree.ID {
+		t.Fatalf("gameTwo red player = %#v, want P3", loadedTwo.RedPlayer)
+	}
+	if loadedTwo.BlackPlayer != nil {
+		t.Fatalf("gameTwo black player = %#v, want nil", loadedTwo.BlackPlayer)
 	}
 }

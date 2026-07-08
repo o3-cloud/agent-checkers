@@ -62,6 +62,56 @@ func TestHandlersCreateJoinAndGetGame(t *testing.T) {
 	}
 }
 
+func TestHandlersCreateGamesAndJoinSpecificGameInIsolation(t *testing.T) {
+	store := newMockStore()
+	h := New(store, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	gameOneID := createGameForTest(t, router, "P1")
+	gameTwoID := createGameForTest(t, router, "P3")
+
+	joinBody := bytes.NewBufferString(`{"player_name":"P2","player_type":"human"}`)
+	joinResponse := httptest.NewRecorder()
+	router.ServeHTTP(joinResponse, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+gameOneID+"/join", joinBody))
+
+	if joinResponse.Code != http.StatusOK {
+		t.Fatalf("join status = %d, want %d, body %s", joinResponse.Code, http.StatusOK, joinResponse.Body.String())
+	}
+
+	gameOne := decodeGameStateForTest(t, joinResponse.Body.Bytes())
+	if gameOne["status"] != "active" {
+		t.Fatalf("game one status = %v, want active", gameOne["status"])
+	}
+	gameOneRed := gameOne["red_player"].(map[string]any)
+	if gameOneRed["name"] != "P1" {
+		t.Fatalf("game one red player = %v, want P1", gameOneRed["name"])
+	}
+	gameOneBlack := gameOne["black_player"].(map[string]any)
+	if gameOneBlack["name"] != "P2" {
+		t.Fatalf("game one black player = %v, want P2", gameOneBlack["name"])
+	}
+
+	getGameTwoResponse := httptest.NewRecorder()
+	router.ServeHTTP(getGameTwoResponse, httptest.NewRequest(http.MethodGet, "/api/v1/games/"+gameTwoID, nil))
+
+	if getGameTwoResponse.Code != http.StatusOK {
+		t.Fatalf("get game two status = %d, want %d, body %s", getGameTwoResponse.Code, http.StatusOK, getGameTwoResponse.Body.String())
+	}
+
+	gameTwo := decodeGameStateForTest(t, getGameTwoResponse.Body.Bytes())
+	if gameTwo["status"] != "waiting" {
+		t.Fatalf("game two status = %v, want waiting", gameTwo["status"])
+	}
+	gameTwoRed := gameTwo["red_player"].(map[string]any)
+	if gameTwoRed["name"] != "P3" {
+		t.Fatalf("game two red player = %v, want P3", gameTwoRed["name"])
+	}
+	if gameTwo["black_player"] != nil {
+		t.Fatalf("game two black player = %v, want nil", gameTwo["black_player"])
+	}
+}
+
 func TestHandlersMakeMoveRecordsHistory(t *testing.T) {
 	store := newMockStore()
 	h := New(store, nil)
@@ -129,6 +179,34 @@ func TestHandlersReturnJSONErrors(t *testing.T) {
 	if payload["error"] == "" {
 		t.Fatal("error response did not include an error message")
 	}
+}
+
+func createGameForTest(t *testing.T, router http.Handler, playerName string) string {
+	t.Helper()
+
+	body := bytes.NewBufferString(`{"player_name":"` + playerName + `","player_type":"human"}`)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/games", body))
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create game for %s status = %d, want %d, body %s", playerName, response.Code, http.StatusCreated, response.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	return created["game_id"].(string)
+}
+
+func decodeGameStateForTest(t *testing.T, payload []byte) map[string]any {
+	t.Helper()
+
+	var response map[string]any
+	if err := json.Unmarshal(payload, &response); err != nil {
+		t.Fatalf("decode game response: %v", err)
+	}
+	return response["game_state"].(map[string]any)
 }
 
 type mockStore struct {
