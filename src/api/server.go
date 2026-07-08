@@ -15,6 +15,7 @@ import (
 	"github.com/stackable-specs/agent-checkers/internal/app/store"
 	"github.com/stackable-specs/agent-checkers/src/api/dto"
 	"github.com/stackable-specs/agent-checkers/src/api/handlers"
+	apiws "github.com/stackable-specs/agent-checkers/src/api/websocket"
 )
 
 // Server wraps the HTTP server and its dependencies.
@@ -67,7 +68,9 @@ func NewRouter(gameStore store.GameStore, sessionManager *session.Manager) http.
 		writeRouterError(w, http.StatusMethodNotAllowed, "method not allowed")
 	})
 
-	handlers.New(gameStore, sessionManager).RegisterRoutes(router)
+	hub := apiws.NewHub()
+	handlers.NewWithBroadcaster(gameStore, sessionManager, hub).RegisterRoutes(router)
+	router.Handle("/api/v1/games/{id}/ws", apiws.NewWebSocketHandler(hub, sessionManager, gameStore))
 	return router
 }
 

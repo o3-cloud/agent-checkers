@@ -48,6 +48,12 @@ func (h *Handlers) MakeMove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	move := g.Moves[len(g.Moves)-1]
+	h.broadcastMoveMade(g, move)
+	h.broadcastTurnChanged(g)
+	if g.Result != nil {
+		h.broadcastGameEnded(g)
+	}
+
 	writeJSON(w, http.StatusOK, dto.MoveResponse{
 		Success:   true,
 		Move:      ptr(dto.NewMoveResponse(move)),

@@ -13,6 +13,7 @@ import (
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
 	"github.com/stackable-specs/agent-checkers/internal/app/store"
 	"github.com/stackable-specs/agent-checkers/src/api/dto"
+	apiws "github.com/stackable-specs/agent-checkers/src/api/websocket"
 )
 
 // Lobby registers players for new and existing games.
@@ -26,12 +27,18 @@ type SessionCreator interface {
 	Create(playerID, gameID string) (*session.Session, error)
 }
 
+// Broadcaster publishes real-time game events.
+type Broadcaster interface {
+	BroadcastEvent(gameID string, event apiws.Event)
+}
+
 // Handlers owns REST dependencies.
 type Handlers struct {
-	store     store.GameStore
-	lobby     Lobby
-	sessions  SessionCreator
-	validator *rules.Validator
+	store       store.GameStore
+	lobby       Lobby
+	sessions    SessionCreator
+	validator   *rules.Validator
+	broadcaster Broadcaster
 }
 
 // New creates REST handlers backed by a game store.
@@ -47,6 +54,13 @@ func NewWithLobby(gameStore store.GameStore, gameLobby Lobby, sessions SessionCr
 		sessions:  sessions,
 		validator: rules.NewValidator(),
 	}
+}
+
+// NewWithBroadcaster creates REST handlers with real-time event broadcasting.
+func NewWithBroadcaster(gameStore store.GameStore, sessions SessionCreator, broadcaster Broadcaster) *Handlers {
+	h := New(gameStore, sessions)
+	h.broadcaster = broadcaster
+	return h
 }
 
 // RegisterRoutes attaches all REST routes to a chi router.

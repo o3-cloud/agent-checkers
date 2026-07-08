@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/stackable-specs/agent-checkers/internal/app/game"
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
 	"github.com/stackable-specs/agent-checkers/src/api/dto"
 )
@@ -63,6 +64,8 @@ func (h *Handlers) JoinGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.broadcastGameStarted(g)
+
 	writeJSON(w, http.StatusOK, dto.PlayerGameResponse{
 		Success:   true,
 		GameID:    g.ID,
@@ -110,6 +113,8 @@ func (h *Handlers) ResignGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.broadcastGameEnded(g)
+
 	writeJSON(w, http.StatusOK, dto.GameResponse{
 		Success:   true,
 		GameID:    g.ID,
@@ -143,6 +148,10 @@ func (h *Handlers) OfferOrAcceptDraw(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.SaveGame(g); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if g.Status == game.StatusDraw {
+		h.broadcastGameEnded(g)
 	}
 
 	writeJSON(w, http.StatusOK, dto.GameResponse{

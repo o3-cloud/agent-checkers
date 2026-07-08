@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
 	"github.com/stackable-specs/agent-checkers/internal/app/store"
+	apiws "github.com/stackable-specs/agent-checkers/src/api/websocket"
 )
 
 func TestHandlersCreateJoinAndGetGame(t *testing.T) {
@@ -156,6 +157,69 @@ func TestHandlersMakeMoveRecordsHistory(t *testing.T) {
 	}
 }
 
+func TestHandlersBroadcastGameStartedWhenSecondPlayerJoins(t *testing.T) {
+	store := newMockStore()
+	broadcaster := &recordingBroadcaster{}
+	h := NewWithBroadcaster(store, nil, broadcaster)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	gameID := createGameForTest(t, router, "Alice")
+	joinBody := bytes.NewBufferString(`{"player_name":"Bob","player_type":"human"}`)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+gameID+"/join", joinBody))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("join status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	event := broadcaster.singleEvent(t)
+	if event.gameID != gameID {
+		t.Fatalf("broadcast game ID = %q, want %q", event.gameID, gameID)
+	}
+	if event.event.Type != apiws.EventTypeGameStarted {
+		t.Fatalf("event type = %q, want %q", event.event.Type, apiws.EventTypeGameStarted)
+	}
+}
+
+func TestHandlersBroadcastMoveAndTurnChangeWhenMoveSucceeds(t *testing.T) {
+	store := newMockStore()
+	broadcaster := &recordingBroadcaster{}
+	h := NewWithBroadcaster(store, nil, broadcaster)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	g := game.NewGame()
+	red := &game.Player{ID: "red-player", Name: "Alice", Type: "human"}
+	black := &game.Player{ID: "black-player", Name: "Bob", Type: "human"}
+	if err := g.AddPlayer(red); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer(black); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveGame(g); err != nil {
+		t.Fatal(err)
+	}
+
+	body := bytes.NewBufferString(`{"player_id":"red-player","from":{"row":2,"col":1},"to":{"row":3,"col":0}}`)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+g.ID+"/moves", body))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("move status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	events := broadcaster.events
+	if len(events) != 2 {
+		t.Fatalf("broadcast count = %d, want 2", len(events))
+	}
+	if events[0].event.Type != apiws.EventTypeMoveMade {
+		t.Fatalf("first event type = %q, want %q", events[0].event.Type, apiws.EventTypeMoveMade)
+	}
+	if events[1].event.Type != apiws.EventTypeTurnChanged {
+		t.Fatalf("second event type = %q, want %q", events[1].event.Type, apiws.EventTypeTurnChanged)
+	}
+}
+
 func TestHandlersDrawOfferAndAccept(t *testing.T) {
 	store := newMockStore()
 	h := New(store, nil)
@@ -295,6 +359,27 @@ func decodeGameStateForTest(t *testing.T, payload []byte) map[string]any {
 type mockStore struct {
 	games   map[string]*game.Game
 	players map[string]*game.Player
+}
+
+type recordedEvent struct {
+	gameID string
+	event  apiws.Event
+}
+
+type recordingBroadcaster struct {
+	events []recordedEvent
+}
+
+func (r *recordingBroadcaster) BroadcastEvent(gameID string, event apiws.Event) {
+	r.events = append(r.events, recordedEvent{gameID: gameID, event: event})
+}
+
+func (r *recordingBroadcaster) singleEvent(t *testing.T) recordedEvent {
+	t.Helper()
+	if len(r.events) != 1 {
+		t.Fatalf("broadcast count = %d, want 1", len(r.events))
+	}
+	return r.events[0]
 }
 
 func newMockStore() *mockStore {
