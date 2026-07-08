@@ -7,6 +7,8 @@ func Schemas() map[string]map[string]any {
 		"JoinGameRequest":     playerRegistrationSchema("JoinGameRequest"),
 		"MoveRequest":         moveRequestSchema(),
 		"PlayerActionRequest": playerActionRequestSchema(),
+		"GameSummary":         gameSummarySchema(),
+		"ListGamesResponse":   listGamesResponseSchema(),
 		"GameState":           gameStateSchema(),
 		"PlayerResponse":      playerResponseSchema(),
 		"SessionResponse":     sessionResponseSchema(),
@@ -41,6 +43,24 @@ func moveRequestSchema() map[string]any {
 func playerActionRequestSchema() map[string]any {
 	return object("PlayerActionRequest", []string{"player_id"}, map[string]any{
 		"player_id": map[string]any{"type": "string"},
+	})
+}
+
+func gameSummarySchema() map[string]any {
+	return object("GameSummary", []string{"game_id", "status", "current_turn", "red_player", "black_player", "created_at"}, map[string]any{
+		"game_id":      map[string]any{"type": "string"},
+		"status":       map[string]any{"type": "string", "enum": []string{"waiting", "active", "completed", "draw"}},
+		"current_turn": map[string]any{"type": "string", "enum": []string{"red", "black"}},
+		"red_player":   nullableRef("PlayerResponse"),
+		"black_player": nullableRef("PlayerResponse"),
+		"created_at":   dateTimeSchema(),
+	})
+}
+
+func listGamesResponseSchema() map[string]any {
+	return object("ListGamesResponse", []string{"success", "games"}, map[string]any{
+		"success": map[string]any{"type": "boolean"},
+		"games":   map[string]any{"type": "array", "items": ref("GameSummary")},
 	})
 }
 

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
+	"github.com/stackable-specs/agent-checkers/internal/app/discovery"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
 	"github.com/stackable-specs/agent-checkers/src/api/dto"
@@ -34,6 +36,24 @@ func (h *Handlers) CreateGame(w http.ResponseWriter, r *http.Request) {
 		Player:    dto.NewPlayerResponse(player),
 		Session:   dto.NewSessionResponse(session),
 		GameState: dto.NewGameState(g),
+	})
+}
+
+// ListGames returns game summaries matching optional status and player filters.
+func (h *Handlers) ListGames(w http.ResponseWriter, r *http.Request) {
+	games, err := discovery.ListGames(h.store, r.URL.Query().Get("status"), r.URL.Query().Get("player_id"))
+	if err != nil {
+		if errors.Is(err, discovery.ErrInvalidStatus) {
+			writeError(w, http.StatusBadRequest, "invalid status")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.ListGamesResponse{
+		Success: true,
+		Games:   dto.NewGameSummaries(games),
 	})
 }
 

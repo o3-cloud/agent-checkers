@@ -13,10 +13,12 @@ import (
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
 	"github.com/stackable-specs/agent-checkers/internal/app/store"
 	"github.com/stackable-specs/agent-checkers/src/api"
+	"github.com/stackable-specs/agent-checkers/src/mcp"
 )
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "check whether the service is healthy")
+	mcpMode := flag.Bool("mcp", false, "run the MCP stdio server")
 	flag.Parse()
 
 	port := os.Getenv("PORT")
@@ -33,6 +35,14 @@ func main() {
 	defer stop()
 
 	gameStore := store.NewMemoryStore()
+	if *mcpMode {
+		if err := mcp.NewServer(gameStore).Run(ctx, os.Stdin, os.Stdout); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	sessionManager := session.NewManager(24 * time.Hour)
 	server := api.NewServer(api.Config{
 		Addr:            ":" + port,

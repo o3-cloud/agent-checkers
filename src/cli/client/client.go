@@ -52,6 +52,24 @@ func (c *Client) JoinGame(ctx context.Context, gameID, name, playerType string) 
 	return &response, raw, err
 }
 
+// ListGames returns game summaries matching optional filters.
+func (c *Client) ListGames(ctx context.Context, status, playerID string) (*dto.ListGamesResponse, []byte, error) {
+	var response dto.ListGamesResponse
+	values := url.Values{}
+	if status != "" {
+		values.Set("status", status)
+	}
+	if playerID != "" {
+		values.Set("player_id", playerID)
+	}
+	path := "/api/v1/games"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	raw, err := c.do(ctx, http.MethodGet, path, nil, &response)
+	return &response, raw, err
+}
+
 // GetGame returns the current game state.
 func (c *Client) GetGame(ctx context.Context, gameID string) (*dto.GameResponse, []byte, error) {
 	var response dto.GameResponse

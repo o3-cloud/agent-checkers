@@ -7,12 +7,120 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
 	"github.com/stackable-specs/agent-checkers/internal/app/store"
 	apiws "github.com/stackable-specs/agent-checkers/src/api/websocket"
 )
+
+func TestHandlersListGamesDefaultsToWaitingAndActive(t *testing.T) {
+	store := newMockStore()
+	waiting := gameForListTest(t, store, "waiting-game", game.StatusWaiting, time.Now().Add(-1*time.Hour), "red-waiting", "")
+	active := gameForListTest(t, store, "active-game", game.StatusActive, time.Now(), "red-active", "black-active")
+	gameForListTest(t, store, "completed-game", game.StatusCompleted, time.Now().Add(1*time.Hour), "red-completed", "black-completed")
+	gameForListTest(t, store, "draw-game", game.StatusDraw, time.Now().Add(2*time.Hour), "red-draw", "black-draw")
+
+	response := listGamesForTest(t, store, "")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if got := response.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("content-type = %q, want application/json", got)
+	}
+	games := decodeListGamesForTest(t, response.Body.Bytes())
+	if len(games) != 2 {
+		t.Fatalf("games length = %d, want 2", len(games))
+	}
+	if games[0]["game_id"] != active.ID || games[1]["game_id"] != waiting.ID {
+		t.Fatalf("game order = %v, want active then waiting", []any{games[0]["game_id"], games[1]["game_id"]})
+	}
+}
+
+func TestHandlersListGamesFiltersByStatus(t *testing.T) {
+	store := newMockStore()
+	waiting := gameForListTest(t, store, "waiting-game", game.StatusWaiting, time.Now(), "red-waiting", "")
+	gameForListTest(t, store, "active-game", game.StatusActive, time.Now().Add(-1*time.Hour), "red-active", "black-active")
+
+	response := listGamesForTest(t, store, "?status=waiting")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	games := decodeListGamesForTest(t, response.Body.Bytes())
+	if len(games) != 1 {
+		t.Fatalf("games length = %d, want 1", len(games))
+	}
+	if games[0]["game_id"] != waiting.ID || games[0]["status"] != "waiting" {
+		t.Fatalf("game = %#v, want waiting game", games[0])
+	}
+}
+
+func TestHandlersListGamesFiltersByPlayerID(t *testing.T) {
+	store := newMockStore()
+	aliceGame := gameForListTest(t, store, "alice-game", game.StatusActive, time.Now(), "alice", "bob")
+	gameForListTest(t, store, "other-game", game.StatusActive, time.Now().Add(-1*time.Hour), "carol", "dave")
+
+	response := listGamesForTest(t, store, "?player_id=alice")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	games := decodeListGamesForTest(t, response.Body.Bytes())
+	if len(games) != 1 {
+		t.Fatalf("games length = %d, want 1", len(games))
+	}
+	if games[0]["game_id"] != aliceGame.ID {
+		t.Fatalf("game_id = %v, want %s", games[0]["game_id"], aliceGame.ID)
+	}
+}
+
+func TestHandlersListGamesReturnsEmptyList(t *testing.T) {
+	store := newMockStore()
+
+	response := listGamesForTest(t, store, "")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	games := decodeListGamesForTest(t, response.Body.Bytes())
+	if len(games) != 0 {
+		t.Fatalf("games length = %d, want 0", len(games))
+	}
+}
+
+func TestHandlersListGamesSortsByCreatedAtDescending(t *testing.T) {
+	store := newMockStore()
+	oldGame := gameForListTest(t, store, "old-game", game.StatusActive, time.Now().Add(-2*time.Hour), "old-red", "old-black")
+	newGame := gameForListTest(t, store, "new-game", game.StatusActive, time.Now(), "new-red", "new-black")
+	middleGame := gameForListTest(t, store, "middle-game", game.StatusActive, time.Now().Add(-1*time.Hour), "middle-red", "middle-black")
+
+	response := listGamesForTest(t, store, "")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	games := decodeListGamesForTest(t, response.Body.Bytes())
+	got := []any{games[0]["game_id"], games[1]["game_id"], games[2]["game_id"]}
+	want := []string{newGame.ID, middleGame.ID, oldGame.ID}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("game order = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestHandlersListGamesRejectsInvalidStatus(t *testing.T) {
+	store := newMockStore()
+
+	response := listGamesForTest(t, store, "?status=paused")
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusBadRequest, response.Body.String())
+	}
+}
 
 func TestHandlersCreateJoinAndGetGame(t *testing.T) {
 	store := newMockStore()
@@ -393,6 +501,58 @@ func decodeGameStateForTest(t *testing.T, payload []byte) map[string]any {
 	return response["game_state"].(map[string]any)
 }
 
+func gameForListTest(t *testing.T, gameStore store.GameStore, id string, status game.Status, createdAt time.Time, redID, blackID string) *game.Game {
+	t.Helper()
+
+	g := game.NewGame()
+	g.ID = id
+	g.CreatedAt = createdAt
+	g.UpdatedAt = createdAt
+	if redID != "" {
+		if err := g.AddPlayer(&game.Player{ID: redID, Name: redID, Type: "human"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if blackID != "" {
+		if err := g.AddPlayer(&game.Player{ID: blackID, Name: blackID, Type: "human"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g.Status = status
+	if err := gameStore.SaveGame(g); err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+func listGamesForTest(t *testing.T, gameStore store.GameStore, query string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	h := New(gameStore, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/games"+query, nil))
+	return response
+}
+
+func decodeListGamesForTest(t *testing.T, payload []byte) []map[string]any {
+	t.Helper()
+
+	var response struct {
+		Success bool             `json:"success"`
+		Games   []map[string]any `json:"games"`
+	}
+	if err := json.Unmarshal(payload, &response); err != nil {
+		t.Fatalf("decode list games response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("success = %v, want true", response.Success)
+	}
+	return response.Games
+}
+
 type mockStore struct {
 	games   map[string]*game.Game
 	players map[string]*game.Player
@@ -448,7 +608,17 @@ func (m *mockStore) DeleteGame(id string) error {
 }
 
 func (m *mockStore) ListGames(filter store.GameFilter) ([]*game.Game, error) {
-	return nil, nil
+	games := make([]*game.Game, 0, len(m.games))
+	for _, g := range m.games {
+		if (filter.StatusSet || filter.Status != 0) && g.Status != filter.Status {
+			continue
+		}
+		if filter.PlayerID != "" && !mockGameHasPlayer(g, filter.PlayerID) {
+			continue
+		}
+		games = append(games, g.Clone())
+	}
+	return games, nil
 }
 
 func (m *mockStore) SavePlayer(p *game.Player) error {
@@ -475,6 +645,11 @@ func (m *mockStore) GetMoveHistory(gameID string) ([]game.Move, error) {
 		return nil, store.ErrNotFound
 	}
 	return append([]game.Move(nil), g.Moves...), nil
+}
+
+func mockGameHasPlayer(g *game.Game, playerID string) bool {
+	return (g.RedPlayer != nil && g.RedPlayer.ID == playerID) ||
+		(g.BlackPlayer != nil && g.BlackPlayer.ID == playerID)
 }
 
 func TestHandlersGetValidMoves(t *testing.T) {

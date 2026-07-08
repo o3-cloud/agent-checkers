@@ -4,6 +4,7 @@ package game
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,22 @@ func (s Status) String() string {
 		return "draw"
 	default:
 		return "unknown"
+	}
+}
+
+// ParseStatus converts a status string into a game status.
+func ParseStatus(value string) (Status, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "waiting":
+		return StatusWaiting, true
+	case "active":
+		return StatusActive, true
+	case "completed":
+		return StatusCompleted, true
+	case "draw":
+		return StatusDraw, true
+	default:
+		return StatusWaiting, false
 	}
 }
 

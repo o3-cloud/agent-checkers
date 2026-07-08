@@ -15,8 +15,9 @@ var ErrNotFound = errors.New("not found")
 
 // GameFilter filters game list results.
 type GameFilter struct {
-	Status   game.Status
-	PlayerID string
+	Status    game.Status
+	StatusSet bool
+	PlayerID  string
 }
 
 // GameStore defines the game persistence contract.
@@ -93,7 +94,7 @@ func (m *MemoryStore) ListGames(filter GameFilter) ([]*game.Game, error) {
 
 	games := make([]*game.Game, 0, len(m.games))
 	for _, g := range m.games {
-		if filter.Status != 0 && g.Status != filter.Status {
+		if (filter.StatusSet || filter.Status != 0) && g.Status != filter.Status {
 			continue
 		}
 		if filter.PlayerID != "" && !gameHasPlayer(g, filter.PlayerID) {

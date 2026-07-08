@@ -26,6 +26,7 @@ func TestBuildOpenAPIDocument(t *testing.T) {
 	}
 
 	assertOperation(t, doc, "/api/v1/games", "post", "createGame")
+	assertOperation(t, doc, "/api/v1/games", "get", "listGames")
 	assertOperation(t, doc, "/api/v1/games/{id}/join", "post", "joinGame")
 	assertOperation(t, doc, "/api/v1/games/{id}", "get", "getGame")
 	assertOperation(t, doc, "/api/v1/games/{id}", "delete", "resignGame")
@@ -37,7 +38,7 @@ func TestBuildOpenAPIDocument(t *testing.T) {
 	assertOperation(t, doc, "/openapi.json", "get", "getOpenAPISpecJSON")
 	assertOperation(t, doc, "/openapi.yaml", "get", "getOpenAPISpecYAML")
 
-	for _, schema := range []string{"CreateGameRequest", "JoinGameRequest", "MoveRequest", "GameState", "PlayerResponse", "ErrorResponse", "MoveResponse"} {
+	for _, schema := range []string{"CreateGameRequest", "JoinGameRequest", "MoveRequest", "GameState", "GameSummary", "ListGamesResponse", "PlayerResponse", "ErrorResponse", "MoveResponse"} {
 		if _, ok := doc.Components.Schemas[schema]; !ok {
 			t.Fatalf("components.schemas missing %s", schema)
 		}

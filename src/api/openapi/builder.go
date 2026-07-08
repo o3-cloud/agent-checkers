@@ -154,6 +154,11 @@ func YAML() ([]byte, error) {
 func paths() map[string]PathItem {
 	return map[string]PathItem{
 		"/api/v1/games": {
+			Get: operation("games", "listGames", "List games", "Return games filtered by status and player. Defaults to active and waiting games.",
+				[]Parameter{statusQueryParameter(), playerIDQueryParameter()}, nil, responses(
+					success("200", "Game list", "ListGamesResponse"),
+					errorResponse("400", "Invalid status filter"),
+				)),
 			Post: operation("games", "createGame", "Create a game", "Create a new waiting game and register the first player as red. A player session is returned when session management is enabled.",
 				nil, jsonBody("CreateGameRequest", "First player registration payload"), responses(
 					success("201", "Game created", "PlayerGameResponse"),
@@ -301,6 +306,29 @@ func idPathParameter() Parameter {
 		In:          "path",
 		Required:    true,
 		Description: "Game identifier.",
+		Schema:      map[string]any{"type": "string"},
+	}
+}
+
+func statusQueryParameter() Parameter {
+	return Parameter{
+		Name:        "status",
+		In:          "query",
+		Required:    false,
+		Description: "Optional game status filter. Omit to return active and waiting games.",
+		Schema: map[string]any{
+			"type": "string",
+			"enum": []string{"waiting", "active", "completed", "draw", "all"},
+		},
+	}
+}
+
+func playerIDQueryParameter() Parameter {
+	return Parameter{
+		Name:        "player_id",
+		In:          "query",
+		Required:    false,
+		Description: "Optional player identifier filter.",
 		Schema:      map[string]any{"type": "string"},
 	}
 }

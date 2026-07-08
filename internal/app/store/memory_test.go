@@ -145,6 +145,14 @@ func TestMemoryStoreListAndDeleteGames(t *testing.T) {
 		t.Fatalf("ListGames(active) = %#v, want active game", activeGames)
 	}
 
+	waitingGames, err := store.ListGames(GameFilter{Status: game.StatusWaiting, StatusSet: true})
+	if err != nil {
+		t.Fatalf("ListGames(waiting) error = %v", err)
+	}
+	if len(waitingGames) != 1 || waitingGames[0].ID != waiting.ID {
+		t.Fatalf("ListGames(waiting) = %#v, want waiting game", waitingGames)
+	}
+
 	if err := store.DeleteGame(waiting.ID); err != nil {
 		t.Fatalf("DeleteGame() error = %v", err)
 	}

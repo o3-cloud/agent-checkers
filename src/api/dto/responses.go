@@ -43,6 +43,22 @@ type MoveHistoryResponse struct {
 	Moves   []MoveResponseDTO `json:"moves"`
 }
 
+// GameSummary is a compact JSON-friendly representation for game lists.
+type GameSummary struct {
+	GameID      string          `json:"game_id"`
+	Status      string          `json:"status"`
+	CurrentTurn string          `json:"current_turn"`
+	RedPlayer   *PlayerResponse `json:"red_player"`
+	BlackPlayer *PlayerResponse `json:"black_player"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
+
+// ListGamesResponse contains game summaries.
+type ListGamesResponse struct {
+	Success bool          `json:"success"`
+	Games   []GameSummary `json:"games"`
+}
+
 // GameState is a JSON-friendly representation of a game.
 type GameState struct {
 	ID          string          `json:"id"`
@@ -96,6 +112,30 @@ func NewGameState(g *game.Game) *GameState {
 		CreatedAt:   g.CreatedAt,
 		UpdatedAt:   g.UpdatedAt,
 	}
+}
+
+// NewGameSummary converts a domain game into a compact list DTO.
+func NewGameSummary(g *game.Game) GameSummary {
+	if g == nil {
+		return GameSummary{}
+	}
+	return GameSummary{
+		GameID:      g.ID,
+		Status:      g.Status.String(),
+		CurrentTurn: g.CurrentTurn.String(),
+		RedPlayer:   NewPlayerResponse(g.RedPlayer),
+		BlackPlayer: NewPlayerResponse(g.BlackPlayer),
+		CreatedAt:   g.CreatedAt,
+	}
+}
+
+// NewGameSummaries converts domain games into compact list DTOs.
+func NewGameSummaries(games []*game.Game) []GameSummary {
+	summaries := make([]GameSummary, len(games))
+	for i, g := range games {
+		summaries[i] = NewGameSummary(g)
+	}
+	return summaries
 }
 
 // NewPlayerResponse converts a domain player into a REST DTO.

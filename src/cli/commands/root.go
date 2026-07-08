@@ -42,6 +42,7 @@ func NewRootCommand() *cobra.Command {
 
 	command.AddCommand(
 		newCommand(options),
+		gamesCommand(options),
 		joinCommand(options),
 		boardCommand(options),
 		moveCommand(options),

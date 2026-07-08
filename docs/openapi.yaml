@@ -20,6 +20,44 @@ tags:
       description: API contract discovery
 paths:
     /api/v1/games:
+        get:
+            tags:
+                - games
+            operationId: listGames
+            summary: List games
+            description: Return games filtered by status and player. Defaults to active and waiting games.
+            parameters:
+                - name: status
+                  in: query
+                  required: false
+                  description: Optional game status filter. Omit to return active and waiting games.
+                  schema:
+                    enum:
+                        - waiting
+                        - active
+                        - completed
+                        - draw
+                        - all
+                    type: string
+                - name: player_id
+                  in: query
+                  required: false
+                  description: Optional player identifier filter.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Game list
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListGamesResponse'
+                "400":
+                    description: Invalid status filter
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
         post:
             tags:
                 - games
@@ -488,6 +526,43 @@ components:
                 - updated_at
             title: GameState
             type: object
+        GameSummary:
+            additionalProperties: false
+            properties:
+                black_player:
+                    oneOf:
+                        - $ref: '#/components/schemas/PlayerResponse'
+                        - type: "null"
+                created_at:
+                    format: date-time
+                    type: string
+                current_turn:
+                    enum:
+                        - red
+                        - black
+                    type: string
+                game_id:
+                    type: string
+                red_player:
+                    oneOf:
+                        - $ref: '#/components/schemas/PlayerResponse'
+                        - type: "null"
+                status:
+                    enum:
+                        - waiting
+                        - active
+                        - completed
+                        - draw
+                    type: string
+            required:
+                - game_id
+                - status
+                - current_turn
+                - red_player
+                - black_player
+                - created_at
+            title: GameSummary
+            type: object
         JoinGameRequest:
             additionalProperties: false
             properties:
@@ -503,6 +578,20 @@ components:
                 - player_name
                 - player_type
             title: JoinGameRequest
+            type: object
+        ListGamesResponse:
+            additionalProperties: false
+            properties:
+                games:
+                    items:
+                        $ref: '#/components/schemas/GameSummary'
+                    type: array
+                success:
+                    type: boolean
+            required:
+                - success
+                - games
+            title: ListGamesResponse
             type: object
         MoveHistoryResponse:
             additionalProperties: false

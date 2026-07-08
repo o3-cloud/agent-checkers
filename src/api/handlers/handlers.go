@@ -66,6 +66,7 @@ func NewWithBroadcaster(gameStore store.GameStore, sessions SessionCreator, broa
 // RegisterRoutes attaches all REST routes to a chi router.
 func (h *Handlers) RegisterRoutes(router chi.Router) {
 	router.Route("/api/v1", func(r chi.Router) {
+		r.Get("/games", h.ListGames)
 		r.Post("/games", h.CreateGame)
 		r.Post("/games/{id}/join", h.JoinGame)
 		r.Get("/games/{id}", h.GetGame)
