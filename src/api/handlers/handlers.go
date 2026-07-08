@@ -73,6 +73,7 @@ func (h *Handlers) RegisterRoutes(router chi.Router) {
 		r.Post("/games/{id}/draw", h.OfferOrAcceptDraw)
 		r.Post("/games/{id}/moves", h.MakeMove)
 		r.Get("/games/{id}/moves", h.GetMoveHistory)
+		r.Get("/games/{id}/valid-moves", h.GetValidMoves)
 	})
 	router.Get("/health", Health)
 }

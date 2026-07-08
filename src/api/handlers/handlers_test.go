@@ -439,3 +439,61 @@ func (m *mockStore) GetMoveHistory(gameID string) ([]game.Move, error) {
 	}
 	return append([]game.Move(nil), g.Moves...), nil
 }
+
+func TestHandlersGetValidMoves(t *testing.T) {
+	store := newMockStore()
+	h := New(store, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	// Create + join a game so it's active.
+	gameID := createGameForTest(t, router, "Alice")
+
+	joinBody := bytes.NewBufferString(`{"player_name":"Bob","player_type":"human"}`)
+	joinResponse := httptest.NewRecorder()
+	router.ServeHTTP(joinResponse, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+gameID+"/join", joinBody))
+	if joinResponse.Code != http.StatusOK {
+		t.Fatalf("join status = %d, want %d, body %s", joinResponse.Code, http.StatusOK, joinResponse.Body.String())
+	}
+
+	// Red's first piece is at row 0, col 1 (playable square in row 0).
+	// Request valid moves for that square.
+	validMovesResponse := httptest.NewRecorder()
+	router.ServeHTTP(validMovesResponse, httptest.NewRequest(http.MethodGet, "/api/v1/games/"+gameID+"/valid-moves?row=2&col=1", nil))
+
+	if validMovesResponse.Code != http.StatusOK {
+		t.Fatalf("valid-moves status = %d, want %d, body %s", validMovesResponse.Code, http.StatusOK, validMovesResponse.Body.String())
+	}
+
+	var validMovesResult map[string]any
+	if err := json.Unmarshal(validMovesResponse.Body.Bytes(), &validMovesResult); err != nil {
+		t.Fatalf("decode valid-moves response: %v", err)
+	}
+	if validMovesResult["success"] != true {
+		t.Fatalf("success = %v, want true", validMovesResult["success"])
+	}
+	moves := validMovesResult["moves"].([]any)
+	if len(moves) == 0 {
+		t.Fatalf("expected non-empty valid moves for red piece at (2,1), got empty")
+	}
+
+	// Assert 404 for unknown game.
+	unknownResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownResponse, httptest.NewRequest(http.MethodGet, "/api/v1/games/nonexistent-id/valid-moves?row=0&col=1", nil))
+	if unknownResponse.Code != http.StatusNotFound {
+		t.Fatalf("unknown game status = %d, want %d", unknownResponse.Code, http.StatusNotFound)
+	}
+
+	// Assert 400 for bad query params.
+	badRowResponse := httptest.NewRecorder()
+	router.ServeHTTP(badRowResponse, httptest.NewRequest(http.MethodGet, "/api/v1/games/"+gameID+"/valid-moves?row=abc&col=1", nil))
+	if badRowResponse.Code != http.StatusBadRequest {
+		t.Fatalf("bad row param status = %d, want %d", badRowResponse.Code, http.StatusBadRequest)
+	}
+
+	badColResponse := httptest.NewRecorder()
+	router.ServeHTTP(badColResponse, httptest.NewRequest(http.MethodGet, "/api/v1/games/"+gameID+"/valid-moves?row=2&col=xyz", nil))
+	if badColResponse.Code != http.StatusBadRequest {
+		t.Fatalf("bad col param status = %d, want %d", badColResponse.Code, http.StatusBadRequest)
+	}
+}

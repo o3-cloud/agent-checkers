@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Checkers</title>
+<link rel="stylesheet" href="/static/css/board.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Agent Checkers</h1>
+  </header>
+
+  <div id="main-layout">
+    <div id="game-panel">
+      <div id="status-bar">No game loaded</div>
+      <div id="board-container">
+        <div id="board"></div>
+      </div>
+      <div id="controls">
+        <button id="new-game-btn" onclick="App.showNewGameForm()">New Game</button>
+        <button id="join-btn" onclick="App.showJoinForm()">Join Game</button>
+        <button id="resign-btn" onclick="App.resignGame()">Resign</button>
+      </div>
+    </div>
+
+    <div id="sidebar">
+      <div id="game-info">
+        <div id="player-info"></div>
+      </div>
+      <h3>Move History</h3>
+      <ol id="move-history"></ol>
+    </div>
+  </div>
+
+  <div id="new-game-form" class="modal" style="display:none">
+    <div class="modal-content">
+      <h2>Create New Game</h2>
+      <label>Player Name: <input type="text" id="new-game-name" placeholder="Your name"></label>
+      <label>Type:
+        <select id="new-game-type">
+          <option value="human">Human</option>
+          <option value="ai">AI</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button onclick="App.createGame()">Create</button>
+        <button onclick="App.hideNewGameForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="join-form" class="modal" style="display:none">
+    <div class="modal-content">
+      <h2>Join Game</h2>
+      <label>Game ID: <input type="text" id="join-game-id" placeholder="Game UUID"></label>
+      <label>Player Name: <input type="text" id="join-player-name" placeholder="Your name"></label>
+      <label>Type:
+        <select id="join-player-type">
+          <option value="human">Human</option>
+          <option value="ai">AI</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button onclick="App.joinGame()">Join</button>
+        <button onclick="App.hideJoinForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/board.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

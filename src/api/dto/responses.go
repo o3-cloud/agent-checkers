@@ -3,6 +3,7 @@ package dto
 import (
 	"time"
 
+	"github.com/stackable-specs/agent-checkers/internal/app/board"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
 )
@@ -144,4 +145,10 @@ func NewMoveHistoryResponse(moves []game.Move) []MoveResponseDTO {
 		result[i] = NewMoveResponse(move)
 	}
 	return result
+}
+
+// ValidMovesResponse contains the valid destination squares for a piece.
+type ValidMovesResponse struct {
+	Success bool             `json:"success"`
+	Moves   []board.Position `json:"moves"`
 }

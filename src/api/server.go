@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stackable-specs/agent-checkers/src/api/dto"
 	"github.com/stackable-specs/agent-checkers/src/api/handlers"
 	apiws "github.com/stackable-specs/agent-checkers/src/api/websocket"
+	"github.com/stackable-specs/agent-checkers/src/web"
 )
 
 // Server wraps the HTTP server and its dependencies.
@@ -71,6 +73,18 @@ func NewRouter(gameStore store.GameStore, sessionManager *session.Manager) http.
 	hub := apiws.NewHub()
 	handlers.NewWithBroadcaster(gameStore, sessionManager, hub).RegisterRoutes(router)
 	router.Handle("/api/v1/games/{id}/ws", apiws.NewWebSocketHandler(hub, sessionManager, gameStore))
+
+	// Serve embedded web UI assets.
+	staticFS, err := fs.Sub(web.FS, "static")
+	if err != nil {
+		router.HandleFunc("/static/*", func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "static assets not found", http.StatusInternalServerError)
+		})
+	} else {
+		router.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	}
+	router.Get("/", serveIndex)
+
 	return router
 }
 
@@ -104,4 +118,15 @@ func writeRouterError(w http.ResponseWriter, status int, message string) {
 		Error:      message,
 		StatusCode: status,
 	})
+}
+
+func serveIndex(w http.ResponseWriter, r *http.Request) {
+	data, err := web.FS.ReadFile("index.html")
+	if err != nil {
+		http.Error(w, "index not found", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
