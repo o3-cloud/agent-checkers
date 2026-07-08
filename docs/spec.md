@@ -781,3 +781,88 @@ Feature: OpenAPI Specification
     Then it should be valid OpenAPI 3.1 YAML
     And it should match the runtime spec served at /openapi.json
 ```
+
+---
+
+## Feature: List Active Games
+
+### Scenario: List games via REST API
+```gherkin
+Feature: List Active Games
+  As a player, AI agent, or observer
+  I want to list all active and waiting games
+  So that I can find a game to join, spectate, or manage
+
+  Background:
+    Given the game server is running on port 8080
+    And there are 2 active games and 1 completed game in the store
+
+  Scenario: List all active games via API
+    When I send a GET request to "/api/v1/games"
+    Then the response status should be 200
+    And the response Content-Type should be "application/json"
+    And the response body should be a JSON array with 2 entries
+    And each entry should have game_id, status, current_turn, and players
+    And the completed game should NOT be included
+
+  Scenario: Filter by status via API
+    Given there is 1 waiting game and 2 active games
+    When I send a GET request to "/api/v1/games?status=waiting"
+    Then the response should contain exactly 1 entry
+    And that entry should have status "waiting"
+
+  Scenario: Filter by player via API
+    Given player "Alice" is in 2 games
+    When I send a GET request to "/api/v1/games?player_id=alice_id"
+    Then the response should contain 2 entries
+    And each entry should list Alice as a player
+
+  Scenario: Empty list via API
+    Given no games exist in the store
+    When I send a GET request to "/api/v1/games"
+    Then the response status should be 200
+    And the response body should be "[]"
+
+  Scenario: List games via CLI
+    Given there are 2 active games and 1 waiting game
+    When I run "agent-checkers games"
+    Then the output should be a table with 3 rows
+    And each row should show game ID, status, red player, black player, and turn
+
+  Scenario: Filter by status via CLI
+    Given there is 1 waiting game and 2 active games
+    When I run "agent-checkers games --status waiting"
+    Then the output should show 1 row
+    And that row should have status "waiting"
+
+  Scenario: CLI JSON output
+    Given there are 2 active games
+    When I run "agent-checkers games --json"
+    Then the output should be valid JSON array with 2 entries
+    And each entry should have game_id, status, current_turn, and players
+
+  Scenario: CLI empty list
+    Given no games exist
+    When I run "agent-checkers games"
+    Then the output should print "No games found"
+
+  Scenario: List games via MCP
+    Given the MCP server is running
+    And there are 2 active games and 1 waiting game
+    When an AI agent calls "list_games"
+    Then the response should contain a games array with 3 entries
+    And each entry should have game_id, status, current_turn, and players
+
+  Scenario: Filter via MCP
+    Given there is 1 waiting game and 2 active games
+    When an AI agent calls "list_games" with status="waiting"
+    Then the games array should contain exactly 1 entry
+    And that entry should have status "waiting"
+
+  Scenario: AI agent finds a game to join
+    Given an AI agent wants to play checkers
+    And there is 1 waiting game with no opponent
+    When the AI calls "list_games" with status="waiting"
+    Then the AI should receive the waiting game's game_id
+    And the AI can call "join_game" with that game_id to start playing
+```

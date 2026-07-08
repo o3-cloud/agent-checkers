@@ -18,6 +18,7 @@ with acceptance criteria a black-box observer can confirm.
 | [008](008-cli-interface.md) | Command-Line Interface | Accepted |
 | [009](009-concurrent-games.md) | Concurrent Games | Accepted |
 | [010](010-openapi-specification.md) | OpenAPI Specification and Discovery | Proposed |
+| [011](011-list-active-games.md) | List Active Games | Proposed |
 
 ## Summary
 
@@ -38,6 +39,11 @@ with acceptance criteria a black-box observer can confirm.
 ### System Behaviors
 
 - **BDR-009**: Concurrent game support and isolation
+- **BDR-011**: List active games across all interfaces (API, CLI, MCP)
+
+### API Behaviors
+
+- **BDR-010**: OpenAPI 3.1 specification and discovery
 
 ## Authoring
 
