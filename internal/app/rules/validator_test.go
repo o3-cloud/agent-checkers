@@ -83,7 +83,7 @@ func TestValidateMove_MandatoryCapture(t *testing.T) {
 	g := newTestGameWithCapture(t)
 
 	// A simple move when capture is available should be rejected
-	from := board.Position{Row: 2, Col: 1}
+	from := board.Position{Row: 2, Col: 3}
 	to := board.Position{Row: 3, Col: 2}
 
 	err := v.ValidateMove(g, from, to)

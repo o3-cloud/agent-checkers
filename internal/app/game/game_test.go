@@ -204,6 +204,74 @@ func TestIsGameOver(t *testing.T) {
 	}
 }
 
+func TestIsGameOver_CaptureAll(t *testing.T) {
+	tests := []struct {
+		name       string
+		board      *board.Board
+		wantWinner string
+	}{
+		{
+			name: "black wins when red has no pieces",
+			board: func() *board.Board {
+				b := board.NewEmpty()
+				b.SetPiece(board.Position{Row: 5, Col: 0}, piece.New("b1", piece.Black))
+				return b
+			}(),
+			wantWinner: "black",
+		},
+		{
+			name: "red wins when black has no pieces",
+			board: func() *board.Board {
+				b := board.NewEmpty()
+				b.SetPiece(board.Position{Row: 2, Col: 1}, piece.New("r1", piece.Red))
+				return b
+			}(),
+			wantWinner: "red",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &Game{Board: tt.board, Status: StatusActive, CurrentTurn: piece.Red}
+
+			over, result := g.IsGameOver()
+
+			if !over {
+				t.Fatal("IsGameOver() = false, want true")
+			}
+			if result.Winner != tt.wantWinner {
+				t.Errorf("IsGameOver() winner = %v, want %v", result.Winner, tt.wantWinner)
+			}
+			if result.Reason != "all_pieces_captured" {
+				t.Errorf("IsGameOver() reason = %v, want all_pieces_captured", result.Reason)
+			}
+		})
+	}
+}
+
+func TestIsGameOver_NoLegalMoves(t *testing.T) {
+	b := board.NewEmpty()
+	b.SetPiece(board.Position{Row: 7, Col: 0}, piece.New("r1", piece.Red))
+	b.SetPiece(board.Position{Row: 0, Col: 1}, piece.New("b1", piece.Black))
+	g := &Game{
+		Board:       b,
+		Status:      StatusActive,
+		CurrentTurn: piece.Red,
+	}
+
+	over, result := g.IsGameOver()
+
+	if !over {
+		t.Fatal("IsGameOver() = false, want true")
+	}
+	if result.Winner != "black" {
+		t.Errorf("IsGameOver() winner = %v, want black", result.Winner)
+	}
+	if result.Reason != "no_legal_moves" {
+		t.Errorf("IsGameOver() reason = %v, want no_legal_moves", result.Reason)
+	}
+}
+
 func TestEndGame(t *testing.T) {
 	g := NewGame()
 	result := &Result{Winner: "red", Reason: "resignation"}

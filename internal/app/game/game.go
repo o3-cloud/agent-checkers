@@ -186,10 +186,111 @@ func (g *Game) IsGameOver() (bool, *Result) {
 		return true, &Result{Winner: "red", Reason: "all_pieces_captured"}
 	}
 
-	// TODO: Check for blocked moves (no valid moves available)
-	// This requires the rules package to check all valid moves
+	if g.Status == StatusActive && !g.hasLegalMove(g.CurrentTurn) {
+		return true, &Result{Winner: opponent(g.CurrentTurn).String(), Reason: "no_legal_moves"}
+	}
 
 	return false, nil
+}
+
+func (g *Game) hasLegalMove(color piece.Color) bool {
+	mustCapture := g.hasCapture(color)
+
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			from := board.Position{Row: row, Col: col}
+			p := g.Board.GetPiece(from)
+			if p == nil || p.Color != color {
+				continue
+			}
+
+			for _, direction := range moveDirections(p) {
+				if g.hasLegalCapture(from, direction) {
+					return true
+				}
+				if !mustCapture && g.hasLegalSimpleMove(from, direction) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (g *Game) hasCapture(color piece.Color) bool {
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			pos := board.Position{Row: row, Col: col}
+			p := g.Board.GetPiece(pos)
+			if p == nil || p.Color != color {
+				continue
+			}
+			for _, direction := range moveDirections(p) {
+				if g.hasLegalCapture(pos, direction) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (g *Game) hasLegalSimpleMove(from board.Position, direction moveDirection) bool {
+	to := board.Position{Row: from.Row + direction.row, Col: from.Col + direction.col}
+	return to.IsValid() && to.IsPlayable() && g.Board.GetPiece(to) == nil
+}
+
+func (g *Game) hasLegalCapture(from board.Position, direction moveDirection) bool {
+	p := g.Board.GetPiece(from)
+	if p == nil {
+		return false
+	}
+
+	capturedPos := board.Position{Row: from.Row + direction.row, Col: from.Col + direction.col}
+	landingPos := board.Position{Row: from.Row + direction.row*2, Col: from.Col + direction.col*2}
+	if !capturedPos.IsValid() || !landingPos.IsValid() || !landingPos.IsPlayable() {
+		return false
+	}
+
+	captured := g.Board.GetPiece(capturedPos)
+	return captured != nil && captured.Color != p.Color && g.Board.GetPiece(landingPos) == nil
+}
+
+type moveDirection struct {
+	row int
+	col int
+}
+
+func moveDirections(p *piece.Piece) []moveDirection {
+	if p.IsKing {
+		return []moveDirection{
+			{row: 1, col: 1},
+			{row: 1, col: -1},
+			{row: -1, col: 1},
+			{row: -1, col: -1},
+		}
+	}
+
+	if p.Color == piece.Black {
+		return []moveDirection{
+			{row: -1, col: -1},
+			{row: -1, col: 1},
+		}
+	}
+
+	return []moveDirection{
+		{row: 1, col: -1},
+		{row: 1, col: 1},
+	}
+}
+
+func opponent(color piece.Color) piece.Color {
+	if color == piece.Red {
+		return piece.Black
+	}
+	return piece.Red
 }
 
 // EndGame ends the game with the given result.

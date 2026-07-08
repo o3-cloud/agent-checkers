@@ -156,6 +156,89 @@ func TestHandlersMakeMoveRecordsHistory(t *testing.T) {
 	}
 }
 
+func TestHandlersDrawOfferAndAccept(t *testing.T) {
+	store := newMockStore()
+	h := New(store, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	createBody := bytes.NewBufferString(`{"player_name":"Alice","player_type":"human"}`)
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, httptest.NewRequest(http.MethodPost, "/api/v1/games", createBody))
+
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want %d, body %s", createResponse.Code, http.StatusCreated, createResponse.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(createResponse.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	gameID := created["game_id"].(string)
+	redPlayer := created["player"].(map[string]any)
+	redPlayerID := redPlayer["id"].(string)
+
+	joinBody := bytes.NewBufferString(`{"player_name":"Bob","player_type":"human"}`)
+	joinResponse := httptest.NewRecorder()
+	router.ServeHTTP(joinResponse, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+gameID+"/join", joinBody))
+
+	if joinResponse.Code != http.StatusOK {
+		t.Fatalf("join status = %d, want %d, body %s", joinResponse.Code, http.StatusOK, joinResponse.Body.String())
+	}
+
+	var joined map[string]any
+	if err := json.Unmarshal(joinResponse.Body.Bytes(), &joined); err != nil {
+		t.Fatalf("decode join response: %v", err)
+	}
+	blackPlayer := joined["player"].(map[string]any)
+	blackPlayerID := blackPlayer["id"].(string)
+
+	offerBody := bytes.NewBufferString(`{"player_id":"` + redPlayerID + `"}`)
+	offerResponse := httptest.NewRecorder()
+	router.ServeHTTP(offerResponse, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+gameID+"/draw", offerBody))
+
+	if offerResponse.Code != http.StatusOK {
+		t.Fatalf("offer status = %d, want %d, body %s", offerResponse.Code, http.StatusOK, offerResponse.Body.String())
+	}
+
+	var offered map[string]any
+	if err := json.Unmarshal(offerResponse.Body.Bytes(), &offered); err != nil {
+		t.Fatalf("decode offer response: %v", err)
+	}
+	if offered["success"] != true {
+		t.Fatalf("offer success = %v, want true", offered["success"])
+	}
+	offeredState := offered["game_state"].(map[string]any)
+	offeredResult := offeredState["result"].(map[string]any)
+	if offeredResult["draw_offer"] != redPlayerID {
+		t.Fatalf("draw offer = %v, want %v", offeredResult["draw_offer"], redPlayerID)
+	}
+
+	acceptBody := bytes.NewBufferString(`{"player_id":"` + blackPlayerID + `"}`)
+	acceptResponse := httptest.NewRecorder()
+	router.ServeHTTP(acceptResponse, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+gameID+"/draw", acceptBody))
+
+	if acceptResponse.Code != http.StatusOK {
+		t.Fatalf("accept status = %d, want %d, body %s", acceptResponse.Code, http.StatusOK, acceptResponse.Body.String())
+	}
+
+	var accepted map[string]any
+	if err := json.Unmarshal(acceptResponse.Body.Bytes(), &accepted); err != nil {
+		t.Fatalf("decode accept response: %v", err)
+	}
+	if accepted["success"] != true {
+		t.Fatalf("accept success = %v, want true", accepted["success"])
+	}
+	acceptedState := accepted["game_state"].(map[string]any)
+	if acceptedState["status"] != "draw" {
+		t.Fatalf("accepted game status = %v, want draw", acceptedState["status"])
+	}
+	acceptedResult := acceptedState["result"].(map[string]any)
+	if acceptedResult["reason"] != "draw_agreement" {
+		t.Fatalf("draw reason = %v, want draw_agreement", acceptedResult["reason"])
+	}
+}
+
 func TestHandlersReturnJSONErrors(t *testing.T) {
 	store := newMockStore()
 	h := New(store, nil)
