@@ -76,6 +76,8 @@ func (h *Handlers) RegisterRoutes(router chi.Router) {
 		r.Get("/games/{id}/valid-moves", h.GetValidMoves)
 	})
 	router.Get("/health", Health)
+	router.Get("/openapi.json", h.ServeOpenAPIJSON)
+	router.Get("/openapi.yaml", h.ServeOpenAPIYAML)
 }
 
 func decodeJSON(r *http.Request, dst interface{}) error {

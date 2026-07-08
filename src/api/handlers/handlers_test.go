@@ -63,6 +63,43 @@ func TestHandlersCreateJoinAndGetGame(t *testing.T) {
 	}
 }
 
+func TestHandlersServeOpenAPI(t *testing.T) {
+	store := newMockStore()
+	h := New(store, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	jsonResponse := httptest.NewRecorder()
+	router.ServeHTTP(jsonResponse, httptest.NewRequest(http.MethodGet, "/openapi.json", nil))
+
+	if jsonResponse.Code != http.StatusOK {
+		t.Fatalf("json status = %d, want %d, body %s", jsonResponse.Code, http.StatusOK, jsonResponse.Body.String())
+	}
+	if got := jsonResponse.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("json content type = %q, want application/json", got)
+	}
+	var spec map[string]any
+	if err := json.Unmarshal(jsonResponse.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("decode OpenAPI JSON: %v", err)
+	}
+	if spec["openapi"] != "3.1.0" {
+		t.Fatalf("openapi = %v, want 3.1.0", spec["openapi"])
+	}
+
+	yamlResponse := httptest.NewRecorder()
+	router.ServeHTTP(yamlResponse, httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil))
+
+	if yamlResponse.Code != http.StatusOK {
+		t.Fatalf("yaml status = %d, want %d, body %s", yamlResponse.Code, http.StatusOK, yamlResponse.Body.String())
+	}
+	if got := yamlResponse.Header().Get("Content-Type"); got != "application/yaml" {
+		t.Fatalf("yaml content type = %q, want application/yaml", got)
+	}
+	if yamlResponse.Body.Len() == 0 {
+		t.Fatal("yaml body is empty")
+	}
+}
+
 func TestHandlersCreateGamesAndJoinSpecificGameInIsolation(t *testing.T) {
 	store := newMockStore()
 	h := New(store, nil)

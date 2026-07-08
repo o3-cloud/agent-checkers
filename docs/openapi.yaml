@@ -1,0 +1,716 @@
+openapi: 3.1.0
+info:
+    title: Agent Checkers API
+    version: 1.0.0
+    description: REST API for creating checkers games, joining players, making moves, and inspecting game state.
+    contact:
+        name: Stackable Specs
+        url: https://github.com/stackable-specs/agent-checkers
+servers:
+    - url: http://localhost:8080
+      description: Default local server
+tags:
+    - name: games
+      description: Game lifecycle and player actions
+    - name: moves
+      description: Move execution and discovery
+    - name: health
+      description: Service health checks
+    - name: meta
+      description: API contract discovery
+paths:
+    /api/v1/games:
+        post:
+            tags:
+                - games
+            operationId: createGame
+            summary: Create a game
+            description: Create a new waiting game and register the first player as red. A player session is returned when session management is enabled.
+            requestBody:
+                required: true
+                description: First player registration payload
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateGameRequest'
+            responses:
+                "201":
+                    description: Game created
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlayerGameResponse'
+                "400":
+                    description: Invalid request payload or player data
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Session creation or persistence failed
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /api/v1/games/{id}:
+        get:
+            tags:
+                - games
+            operationId: getGame
+            summary: Get game state
+            description: Return the current board, players, turn, status, and result for a game.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Current game state
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GameResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+        delete:
+            tags:
+                - games
+            operationId: resignGame
+            summary: Resign a game
+            description: End a game by resignation for the requesting player.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+            requestBody:
+                required: true
+                description: Player resigning the game
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlayerActionRequest'
+            responses:
+                "200":
+                    description: Game ended by resignation
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GameResponse'
+                "400":
+                    description: Invalid request payload or resignation
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Game persistence failed
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /api/v1/games/{id}/draw:
+        post:
+            tags:
+                - games
+            operationId: offerOrAcceptDraw
+            summary: Offer or accept a draw
+            description: Create a draw offer for the requesting player, or accept an existing draw offer from the opponent.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+            requestBody:
+                required: true
+                description: Player offering or accepting a draw
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlayerActionRequest'
+            responses:
+                "200":
+                    description: Draw offer recorded or accepted
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GameResponse'
+                "400":
+                    description: Invalid request payload or draw action
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Game persistence failed
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /api/v1/games/{id}/join:
+        post:
+            tags:
+                - games
+            operationId: joinGame
+            summary: Join a game
+            description: Register the second player for an existing waiting game and start play when the game becomes full.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+            requestBody:
+                required: true
+                description: Joining player registration payload
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/JoinGameRequest'
+            responses:
+                "200":
+                    description: Player joined game
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlayerGameResponse'
+                "400":
+                    description: Invalid request payload or game state
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Session creation or persistence failed
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /api/v1/games/{id}/moves:
+        get:
+            tags:
+                - moves
+            operationId: getMoveHistory
+            summary: Get move history
+            description: Return all recorded moves for a game in chronological order.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: Move history
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MoveHistoryResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+        post:
+            tags:
+                - moves
+            operationId: makeMove
+            summary: Make a move
+            description: Validate and execute a move for a player, then return the move and updated game state.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+            requestBody:
+                required: true
+                description: Move execution payload
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MoveRequest'
+            responses:
+                "200":
+                    description: Move accepted
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MoveResponse'
+                "400":
+                    description: Invalid request payload, move, turn, or piece ownership
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "500":
+                    description: Game persistence failed
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /api/v1/games/{id}/valid-moves:
+        get:
+            tags:
+                - moves
+            operationId: getValidMoves
+            summary: Get valid moves
+            description: Return all valid destination squares for the piece at the requested row and column.
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  description: Game identifier.
+                  schema:
+                    type: string
+                - name: row
+                  in: query
+                  required: true
+                  description: Zero-based board row from 0 through 7.
+                  schema:
+                    maximum: 7
+                    minimum: 0
+                    type: integer
+                - name: col
+                  in: query
+                  required: true
+                  description: Zero-based board col from 0 through 7.
+                  schema:
+                    maximum: 7
+                    minimum: 0
+                    type: integer
+            responses:
+                "200":
+                    description: Valid destination squares
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ValidMovesResponse'
+                "400":
+                    description: Invalid row, column, position, or game state
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+                "404":
+                    description: Game not found
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorResponse'
+    /health:
+        get:
+            tags:
+                - health
+            operationId: healthCheck
+            summary: Health check
+            description: Report whether the HTTP server is ready to handle requests.
+            responses:
+                "200":
+                    description: Server is healthy
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    status:
+                                        example: ok
+                                        type: string
+                                required:
+                                    - status
+                                type: object
+    /openapi.json:
+        get:
+            tags:
+                - meta
+            operationId: getOpenAPISpecJSON
+            summary: Get OpenAPI JSON
+            description: Return this OpenAPI 3.1 contract encoded as JSON.
+            responses:
+                "200":
+                    description: OpenAPI contract as JSON
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+    /openapi.yaml:
+        get:
+            tags:
+                - meta
+            operationId: getOpenAPISpecYAML
+            summary: Get OpenAPI YAML
+            description: Return this OpenAPI 3.1 contract encoded as YAML.
+            responses:
+                "200":
+                    description: OpenAPI contract as YAML
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+components:
+    schemas:
+        CreateGameRequest:
+            additionalProperties: false
+            properties:
+                player_name:
+                    minLength: 1
+                    type: string
+                player_type:
+                    enum:
+                        - human
+                        - ai
+                    type: string
+            required:
+                - player_name
+                - player_type
+            title: CreateGameRequest
+            type: object
+        ErrorResponse:
+            additionalProperties: false
+            properties:
+                error:
+                    type: string
+                status_code:
+                    type: integer
+            required:
+                - error
+                - status_code
+            title: ErrorResponse
+            type: object
+        GameResponse:
+            additionalProperties: false
+            properties:
+                game_id:
+                    type: string
+                game_state:
+                    oneOf:
+                        - $ref: '#/components/schemas/GameState'
+                        - type: "null"
+                success:
+                    type: boolean
+            required:
+                - success
+                - game_id
+                - game_state
+            title: GameResponse
+            type: object
+        GameState:
+            additionalProperties: false
+            properties:
+                black_player:
+                    oneOf:
+                        - $ref: '#/components/schemas/PlayerResponse'
+                        - type: "null"
+                board:
+                    items:
+                        items:
+                            oneOf:
+                                - $ref: '#/components/schemas/Piece'
+                                - type: "null"
+                        maxItems: 8
+                        minItems: 8
+                        type: array
+                    maxItems: 8
+                    minItems: 8
+                    type: array
+                created_at:
+                    format: date-time
+                    type: string
+                current_turn:
+                    enum:
+                        - red
+                        - black
+                    type: string
+                id:
+                    type: string
+                red_player:
+                    oneOf:
+                        - $ref: '#/components/schemas/PlayerResponse'
+                        - type: "null"
+                result:
+                    oneOf:
+                        - $ref: '#/components/schemas/Result'
+                        - type: "null"
+                status:
+                    enum:
+                        - waiting
+                        - active
+                        - completed
+                        - draw
+                    type: string
+                updated_at:
+                    format: date-time
+                    type: string
+            required:
+                - id
+                - board
+                - current_turn
+                - status
+                - created_at
+                - updated_at
+            title: GameState
+            type: object
+        JoinGameRequest:
+            additionalProperties: false
+            properties:
+                player_name:
+                    minLength: 1
+                    type: string
+                player_type:
+                    enum:
+                        - human
+                        - ai
+                    type: string
+            required:
+                - player_name
+                - player_type
+            title: JoinGameRequest
+            type: object
+        MoveHistoryResponse:
+            additionalProperties: false
+            properties:
+                moves:
+                    items:
+                        $ref: '#/components/schemas/MoveResponseDTO'
+                    type: array
+                success:
+                    type: boolean
+            required:
+                - success
+                - moves
+            title: MoveHistoryResponse
+            type: object
+        MoveRequest:
+            additionalProperties: false
+            properties:
+                from:
+                    $ref: '#/components/schemas/Position'
+                player_id:
+                    type: string
+                to:
+                    $ref: '#/components/schemas/Position'
+            required:
+                - player_id
+                - from
+                - to
+            title: MoveRequest
+            type: object
+        MoveResponse:
+            additionalProperties: false
+            properties:
+                game_state:
+                    oneOf:
+                        - $ref: '#/components/schemas/GameState'
+                        - type: "null"
+                move:
+                    oneOf:
+                        - $ref: '#/components/schemas/MoveResponseDTO'
+                        - type: "null"
+                success:
+                    type: boolean
+            required:
+                - success
+                - move
+                - game_state
+            title: MoveResponse
+            type: object
+        MoveResponseDTO:
+            additionalProperties: false
+            properties:
+                captured:
+                    items:
+                        $ref: '#/components/schemas/Position'
+                    type:
+                        - array
+                        - "null"
+                from:
+                    $ref: '#/components/schemas/Position'
+                player_id:
+                    type: string
+                promoted:
+                    type: boolean
+                timestamp:
+                    format: date-time
+                    type: string
+                to:
+                    $ref: '#/components/schemas/Position'
+            required:
+                - from
+                - to
+                - player_id
+                - timestamp
+                - promoted
+            title: MoveResponseDTO
+            type: object
+        Piece:
+            additionalProperties: false
+            properties:
+                color:
+                    enum:
+                        - red
+                        - black
+                    type: string
+                id:
+                    type: string
+                is_king:
+                    type: boolean
+            required:
+                - id
+                - color
+                - is_king
+            title: Piece
+            type: object
+        PlayerActionRequest:
+            additionalProperties: false
+            properties:
+                player_id:
+                    type: string
+            required:
+                - player_id
+            title: PlayerActionRequest
+            type: object
+        PlayerGameResponse:
+            additionalProperties: false
+            properties:
+                game_id:
+                    type: string
+                game_state:
+                    oneOf:
+                        - $ref: '#/components/schemas/GameState'
+                        - type: "null"
+                player:
+                    oneOf:
+                        - $ref: '#/components/schemas/PlayerResponse'
+                        - type: "null"
+                session:
+                    oneOf:
+                        - $ref: '#/components/schemas/SessionResponse'
+                        - type: "null"
+                success:
+                    type: boolean
+            required:
+                - success
+                - game_id
+                - player
+                - game_state
+            title: PlayerGameResponse
+            type: object
+        PlayerResponse:
+            additionalProperties: false
+            properties:
+                color:
+                    enum:
+                        - red
+                        - black
+                    type: string
+                id:
+                    type: string
+                name:
+                    type: string
+                type:
+                    enum:
+                        - human
+                        - ai
+                    type: string
+            required:
+                - id
+                - name
+                - color
+                - type
+            title: PlayerResponse
+            type: object
+        Position:
+            additionalProperties: false
+            properties:
+                col:
+                    maximum: 7
+                    minimum: 0
+                    type: integer
+                row:
+                    maximum: 7
+                    minimum: 0
+                    type: integer
+            required:
+                - row
+                - col
+            title: Position
+            type: object
+        Result:
+            additionalProperties: false
+            properties:
+                draw_offer:
+                    type: string
+                reason:
+                    type: string
+                winner:
+                    type: string
+            required:
+                - winner
+                - reason
+            title: Result
+            type: object
+        SessionResponse:
+            additionalProperties: false
+            properties:
+                expires_at:
+                    format: date-time
+                    type: string
+                token:
+                    type: string
+            required:
+                - token
+                - expires_at
+            title: SessionResponse
+            type: object
+        ValidMovesResponse:
+            additionalProperties: false
+            properties:
+                moves:
+                    items:
+                        $ref: '#/components/schemas/Position'
+                    type: array
+                success:
+                    type: boolean
+            required:
+                - success
+                - moves
+            title: ValidMovesResponse
+            type: object
