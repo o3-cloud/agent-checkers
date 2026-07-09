@@ -58,6 +58,9 @@ tidy: ## Tidy and verify Go modules (spec: go.md:17)
 	go mod tidy
 	git diff --exit-code -- go.mod go.sum
 
+test-bdd: ## Run BDD acceptance tests (spec: spec.md Gherkin)
+	go test -v ./tests/... -run "^$$" -timeout 120s
+
 check: fmt-check vet lint test coverage vuln ## Run all local quality gates
 
 clean: ## Remove generated artifacts
