@@ -106,6 +106,35 @@
   App.init = function () {
     BoardUI.onSquareClick = App.selectSquare;
 
+    // Close resign modal on Escape key
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" || e.keyCode === 27) {
+        var resignModal = document.getElementById("resign-modal");
+        if (resignModal && resignModal.style.display !== "none") {
+          App.hideResignModal();
+        }
+        var joinForm = document.getElementById("join-form");
+        if (joinForm && joinForm.style.display !== "none") {
+          App.hideJoinForm();
+        }
+      }
+    });
+
+    // Clear join form error when user types
+    var joinGameIdInput = document.getElementById("join-game-id");
+    var joinPlayerNameInput = document.getElementById("join-player-name");
+    var joinErrorEl = document.getElementById("join-error");
+    if (joinGameIdInput) {
+      joinGameIdInput.addEventListener("input", function () {
+        if (joinErrorEl) joinErrorEl.textContent = "";
+      });
+    }
+    if (joinPlayerNameInput) {
+      joinPlayerNameInput.addEventListener("input", function () {
+        if (joinErrorEl) joinErrorEl.textContent = "";
+      });
+    }
+
     if (!App.hasStoredSession()) {
       App._setStatusText("No game loaded");
       BoardUI.render(null);
@@ -149,24 +178,34 @@
   // --- New Game ---
 
   App.showNewGameForm = function () {
+    var errorEl = document.getElementById("new-game-error");
+    if (errorEl) errorEl.textContent = "";
     document.getElementById("new-game-form").style.display = "flex";
   };
 
   App.hideNewGameForm = function () {
+    var errorEl = document.getElementById("new-game-error");
+    if (errorEl) errorEl.textContent = "";
     document.getElementById("new-game-form").style.display = "none";
   };
 
   App.createGame = function () {
     var name = document.getElementById("new-game-name").value || "Player1";
     var type = document.getElementById("new-game-type").value;
+    var errorEl = document.getElementById("new-game-error");
+    if (!name.trim()) {
+      if (errorEl) errorEl.textContent = "Player name is required";
+      return;
+    }
     App._api("POST", "/api/v1/games", {
       player_name: name,
       player_type: type,
     }).then(function (data) {
       if (data._status !== 201) {
-        alert("Failed to create game: " + (data.error || "unknown"));
+        if (errorEl) errorEl.textContent = data.error || "Failed to create game";
         return;
       }
+      if (errorEl) errorEl.textContent = "";
       App.gameID = data.game_id;
       App.playerID = data.player.id;
       App.playerColor = data.player.color;
@@ -178,16 +217,22 @@
       App.hideNewGameForm();
       App.refreshUI();
       App.connectWebSocket();
+    }).catch(function (err) {
+      if (errorEl) errorEl.textContent = "Unable to connect to server";
     });
   };
 
   // --- Join Game ---
 
   App.showJoinForm = function () {
+    var errorEl = document.getElementById("join-error");
+    if (errorEl) errorEl.textContent = "";
     document.getElementById("join-form").style.display = "flex";
   };
 
   App.hideJoinForm = function () {
+    var errorEl = document.getElementById("join-error");
+    if (errorEl) errorEl.textContent = "";
     document.getElementById("join-form").style.display = "none";
   };
 
@@ -195,8 +240,9 @@
     var gameID = document.getElementById("join-game-id").value;
     var name = document.getElementById("join-player-name").value || "Player2";
     var type = document.getElementById("join-player-type").value;
+    var errorEl = document.getElementById("join-error");
     if (!gameID) {
-      alert("Please enter a Game ID");
+      if (errorEl) errorEl.textContent = "Game ID is required";
       return;
     }
     App._api("POST", "/api/v1/games/" + gameID + "/join", {
@@ -204,9 +250,12 @@
       player_type: type,
     }).then(function (data) {
       if (data._status !== 200) {
-        alert("Failed to join game: " + (data.error || "unknown"));
+        if (errorEl) {
+          errorEl.textContent = data.error || "Failed to join game";
+        }
         return;
       }
+      if (errorEl) errorEl.textContent = "";
       App.gameID = data.game_id;
       App.playerID = data.player.id;
       App.playerColor = data.player.color;
@@ -218,6 +267,10 @@
       App.hideJoinForm();
       App.refreshUI();
       App.connectWebSocket();
+    }).catch(function (err) {
+      if (errorEl) {
+        errorEl.textContent = "Unable to connect to server";
+      }
     });
   };
 
@@ -315,7 +368,22 @@
 
   App.resignGame = function () {
     if (!App.gameID || !App.playerID) return;
-    if (!confirm("Are you sure you want to resign?")) return;
+    var modal = document.getElementById("resign-modal");
+    if (modal) {
+      modal.style.display = "flex";
+    }
+  };
+
+  App.hideResignModal = function () {
+    var modal = document.getElementById("resign-modal");
+    if (modal) {
+      modal.style.display = "none";
+    }
+  };
+
+  App.confirmResign = function () {
+    if (!App.gameID || !App.playerID) return;
+    App.hideResignModal();
     App._api("DELETE", "/api/v1/games/" + App.gameID, {
       player_id: App.playerID,
     }).then(function (data) {

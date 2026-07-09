@@ -247,6 +247,22 @@ header h1 {
   background: #555;
 }
 
+
+.form-error {
+  color: #e74c3c;
+  font-size: 0.85em;
+  min-height: 1.2em;
+  padding: 2px 0;
+}
+
+.danger-btn {
+  background: #c0392b !important;
+}
+
+.danger-btn:hover {
+  background: #922b21 !important;
+}
+
 @media (max-width: 768px) {
   #main-layout {
     flex-direction: column;

@@ -37,6 +37,7 @@
   <div id="new-game-form" class="modal" style="display:none">
     <div class="modal-content">
       <h2>Create New Game</h2>
+      <div id="new-game-error" class="form-error"></div>
       <label>Player Name: <input type="text" id="new-game-name" placeholder="Your name"></label>
       <label>Type:
         <select id="new-game-type">
@@ -54,6 +55,7 @@
   <div id="join-form" class="modal" style="display:none">
     <div class="modal-content">
       <h2>Join Game</h2>
+      <div id="join-error" class="form-error"></div>
       <label>Game ID: <input type="text" id="join-game-id" placeholder="Game UUID"></label>
       <label>Player Name: <input type="text" id="join-player-name" placeholder="Your name"></label>
       <label>Type:
@@ -65,6 +67,17 @@
       <div class="form-actions">
         <button onclick="App.joinGame()">Join</button>
         <button onclick="App.hideJoinForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="resign-modal" class="modal" style="display:none">
+    <div class="modal-content">
+      <h2>Confirm Resignation</h2>
+      <p id="resign-modal-text">Are you sure you want to resign?</p>
+      <div class="form-actions">
+        <button id="resign-confirm-btn" class="danger-btn" onclick="App.confirmResign()">Confirm Resign</button>
+        <button onclick="App.hideResignModal()">Cancel</button>
       </div>
     </div>
   </div>
