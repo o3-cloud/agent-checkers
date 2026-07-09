@@ -4,13 +4,16 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
+	"github.com/stackable-specs/agent-checkers/internal/app/store"
 	"github.com/stackable-specs/agent-checkers/src/api"
 	"github.com/stackable-specs/agent-checkers/src/config"
 	"github.com/stackable-specs/agent-checkers/src/mcp"
@@ -43,6 +46,11 @@ func main() {
 		return
 	}
 
+	// Start background cleanup of completed/drawn games.
+	cleanupTTL := envDuration("CLEANUP_TTL", 24*time.Hour)
+	cleanupInterval := envDuration("CLEANUP_INTERVAL", time.Hour)
+	go runCleanup(ctx, gameStore, cleanupTTL, cleanupInterval)
+
 	sessionManager := session.NewManager(24 * time.Hour)
 	server := api.NewServer(api.Config{
 		Addr:            ":" + port,
@@ -64,4 +72,40 @@ func runHealthcheck(port string) {
 		os.Exit(1)
 	}
 	_ = response.Body.Close()
+}
+
+// runCleanup periodically removes completed/drawn games older than the TTL.
+func runCleanup(ctx context.Context, gameStore store.GameStore, ttl, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			count, err := gameStore.CleanupCompletedGames(ttl)
+			if err != nil {
+				log.Printf("cleanup: error removing completed games: %v", err)
+				continue
+			}
+			if count > 0 {
+				log.Printf("cleanup: removed %d completed/drawn game(s) older than %s", count, ttl)
+			}
+		}
+	}
+}
+
+// envDuration reads a duration from an environment variable, returning the
+// fallback if the variable is empty or cannot be parsed.
+func envDuration(name string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

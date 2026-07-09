@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stackable-specs/agent-checkers/internal/app/board"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
@@ -159,5 +160,140 @@ func TestMemoryStoreListAndDeleteGames(t *testing.T) {
 	_, err = store.LoadGame(waiting.ID)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("LoadGame(deleted) error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMemoryStoreCleanupCompletedGamesRemovesOldCompleted(t *testing.T) {
+	s := NewMemoryStore()
+	old := game.NewGame()
+	old.ID = "old-completed"
+	old.Status = game.StatusCompleted
+	old.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	if err := s.SaveGame(old); err != nil {
+		t.Fatalf("SaveGame() error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames() error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	if _, err := s.LoadGame(old.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("LoadGame() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMemoryStoreCleanupCompletedGamesKeepsRecentCompleted(t *testing.T) {
+	s := NewMemoryStore()
+	recent := game.NewGame()
+	recent.ID = "recent-completed"
+	recent.Status = game.StatusCompleted
+	recent.UpdatedAt = time.Now().Add(-1 * time.Hour)
+	if err := s.SaveGame(recent); err != nil {
+		t.Fatalf("SaveGame() error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames() error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+	if _, err := s.LoadGame(recent.ID); err != nil {
+		t.Fatalf("LoadGame() error = %v, want nil", err)
+	}
+}
+
+func TestMemoryStoreCleanupCompletedGamesRemovesAllWhenZeroAge(t *testing.T) {
+	s := NewMemoryStore()
+	old := game.NewGame()
+	old.ID = "old-draw"
+	old.Status = game.StatusDraw
+	old.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	recent := game.NewGame()
+	recent.ID = "recent-completed"
+	recent.Status = game.StatusCompleted
+	recent.UpdatedAt = time.Now()
+	if err := s.SaveGame(old); err != nil {
+		t.Fatalf("SaveGame(old) error = %v", err)
+	}
+	if err := s.SaveGame(recent); err != nil {
+		t.Fatalf("SaveGame(recent) error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(0)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames(0) error = %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("count = %d, want 2", count)
+	}
+	if _, err := s.LoadGame(old.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("LoadGame(old) error = %v, want ErrNotFound", err)
+	}
+	if _, err := s.LoadGame(recent.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("LoadGame(recent) error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMemoryStoreCleanupCompletedGamesKeepsActiveAndWaiting(t *testing.T) {
+	s := NewMemoryStore()
+	active := game.NewGame()
+	active.ID = "active-game"
+	active.Status = game.StatusActive
+	active.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	waiting := game.NewGame()
+	waiting.ID = "waiting-game"
+	waiting.Status = game.StatusWaiting
+	waiting.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	if err := s.SaveGame(active); err != nil {
+		t.Fatalf("SaveGame(active) error = %v", err)
+	}
+	if err := s.SaveGame(waiting); err != nil {
+		t.Fatalf("SaveGame(waiting) error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(0)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames(0) error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+	if _, err := s.LoadGame(active.ID); err != nil {
+		t.Fatalf("LoadGame(active) error = %v, want nil", err)
+	}
+	if _, err := s.LoadGame(waiting.ID); err != nil {
+		t.Fatalf("LoadGame(waiting) error = %v, want nil", err)
+	}
+}
+
+func TestMemoryStoreResetClearsAll(t *testing.T) {
+	s := NewMemoryStore()
+	g := game.NewGame()
+	if err := g.AddPlayer(&game.Player{ID: "p1", Name: "Alice", Type: "human"}); err != nil {
+		t.Fatalf("AddPlayer() error = %v", err)
+	}
+	if err := s.SaveGame(g); err != nil {
+		t.Fatalf("SaveGame() error = %v", err)
+	}
+	if err := s.SavePlayer(&game.Player{ID: "p1", Name: "Alice", Type: "human"}); err != nil {
+		t.Fatalf("SavePlayer() error = %v", err)
+	}
+
+	s.Reset()
+
+	games, err := s.ListGames(GameFilter{})
+	if err != nil {
+		t.Fatalf("ListGames() error = %v", err)
+	}
+	if len(games) != 0 {
+		t.Fatalf("games length = %d, want 0 after Reset", len(games))
+	}
+	if _, err := s.LoadPlayer("p1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("LoadPlayer() error = %v, want ErrNotFound after Reset", err)
 	}
 }

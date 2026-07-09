@@ -3,6 +3,8 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/stackable-specs/agent-checkers/internal/app/discovery"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
@@ -178,6 +180,33 @@ func (h *Handlers) OfferOrAcceptDraw(w http.ResponseWriter, r *http.Request) {
 		Success:   true,
 		GameID:    g.ID,
 		GameState: dto.NewGameState(g),
+	})
+}
+
+// CleanupGames removes completed and drawn games. The max_age query parameter
+// controls the threshold: games older than max_age are removed. If max_age is
+// omitted, a 24-hour default is used. If max_age=0, all completed/drawn games
+// are removed regardless of age.
+func (h *Handlers) CleanupGames(w http.ResponseWriter, r *http.Request) {
+	maxAge := 24 * time.Hour
+	if ageStr := r.URL.Query().Get("max_age"); ageStr != "" {
+		ageSeconds, err := strconv.ParseFloat(ageStr, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid max_age; expected seconds")
+			return
+		}
+		maxAge = time.Duration(ageSeconds * float64(time.Second))
+	}
+
+	count, err := h.store.CleanupCompletedGames(maxAge)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.CleanupGamesResponse{
+		Success: true,
+		Cleaned: count,
 	})
 }
 

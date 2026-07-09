@@ -236,3 +236,79 @@ func gameIDs(games []*game.Game) string {
 	sort.Strings(ids)
 	return strings.Join(ids, ",")
 }
+
+func TestRedisStoreCleanupCompletedGamesRemovesAll(t *testing.T) {
+	s := newTestRedisStore(t)
+	old := game.NewGame()
+	old.ID = testRedisKey(t, "old-completed")
+	old.Status = game.StatusCompleted
+	old.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	recent := game.NewGame()
+	recent.ID = testRedisKey(t, "recent-draw")
+	recent.Status = game.StatusDraw
+	recent.UpdatedAt = time.Now()
+	if err := s.SaveGame(old); err != nil {
+		t.Fatalf("SaveGame(old) error = %v", err)
+	}
+	if err := s.SaveGame(recent); err != nil {
+		t.Fatalf("SaveGame(recent) error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(0)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames(0) error = %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("count = %d, want 2", count)
+	}
+	if _, err := s.LoadGame(old.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("LoadGame(old) error = %v, want ErrNotFound", err)
+	}
+	if _, err := s.LoadGame(recent.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("LoadGame(recent) error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRedisStoreCleanupCompletedGamesKeepsRecent(t *testing.T) {
+	s := newTestRedisStore(t)
+	recent := game.NewGame()
+	recent.ID = testRedisKey(t, "recent-completed")
+	recent.Status = game.StatusCompleted
+	recent.UpdatedAt = time.Now().Add(-1 * time.Hour)
+	if err := s.SaveGame(recent); err != nil {
+		t.Fatalf("SaveGame() error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames() error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+	if _, err := s.LoadGame(recent.ID); err != nil {
+		t.Fatalf("LoadGame() error = %v, want nil", err)
+	}
+}
+
+func TestRedisStoreCleanupCompletedGamesKeepsActive(t *testing.T) {
+	s := newTestRedisStore(t)
+	active := game.NewGame()
+	active.ID = testRedisKey(t, "active")
+	active.Status = game.StatusActive
+	active.UpdatedAt = time.Now().Add(-48 * time.Hour)
+	if err := s.SaveGame(active); err != nil {
+		t.Fatalf("SaveGame() error = %v", err)
+	}
+
+	count, err := s.CleanupCompletedGames(0)
+	if err != nil {
+		t.Fatalf("CleanupCompletedGames(0) error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+	if _, err := s.LoadGame(active.ID); err != nil {
+		t.Fatalf("LoadGame() error = %v, want nil", err)
+	}
+}

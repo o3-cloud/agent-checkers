@@ -283,6 +283,57 @@ func (r *RedisStore) movesKey(id string) string {
 	return r.prefix + ":games:" + id + ":moves"
 }
 
+// CleanupCompletedGames removes completed and drawn games older than maxAge.
+// If maxAge <= 0, all completed and drawn games are removed regardless of age.
+// Returns the number of games removed.
+func (r *RedisStore) CleanupCompletedGames(maxAge time.Duration) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	iter := r.client.Scan(ctx, 0, r.gameKey("*"), 0).Iterator()
+	var gameKeys []string
+	for iter.Next(ctx) {
+		key := iter.Val()
+		if strings.HasSuffix(key, ":moves") {
+			continue
+		}
+		gameKeys = append(gameKeys, key)
+	}
+	if err := iter.Err(); err != nil {
+		return 0, fmt.Errorf("scan games for cleanup: %w", err)
+	}
+
+	removed := 0
+	for _, key := range gameKeys {
+		data, err := r.client.Get(ctx, key).Bytes()
+		if errors.Is(err, redis.Nil) {
+			continue
+		}
+		if err != nil {
+			return removed, fmt.Errorf("load game for cleanup %q: %w", key, err)
+		}
+
+		var g game.Game
+		if err := json.Unmarshal(data, &g); err != nil {
+			return removed, fmt.Errorf("unmarshal game for cleanup %q: %w", key, err)
+		}
+		if g.Status != game.StatusCompleted && g.Status != game.StatusDraw {
+			continue
+		}
+		if maxAge > 0 && time.Since(g.UpdatedAt) <= maxAge {
+			continue
+		}
+
+		movesKey := r.movesKey(g.ID)
+		gameKey := r.gameKey(g.ID)
+		if _, err := r.client.Del(ctx, gameKey, movesKey).Result(); err != nil {
+			return removed, fmt.Errorf("delete game %q during cleanup: %w", g.ID, err)
+		}
+		removed++
+	}
+	return removed, nil
+}
+
 func redisContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 2*time.Second)
 }

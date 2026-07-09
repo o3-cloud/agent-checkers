@@ -68,6 +68,7 @@ func (h *Handlers) RegisterRoutes(router chi.Router) {
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Get("/games", h.ListGames)
 		r.Post("/games", h.CreateGame)
+		r.Delete("/games", h.CleanupGames)
 		r.Post("/games/{id}/join", h.JoinGame)
 		r.Get("/games/{id}", h.GetGame)
 		r.Delete("/games/{id}", h.ResignGame)

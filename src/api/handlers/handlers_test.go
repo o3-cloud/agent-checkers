@@ -692,6 +692,21 @@ func (m *mockStore) GetMoveHistory(gameID string) ([]game.Move, error) {
 	return append([]game.Move(nil), g.Moves...), nil
 }
 
+func (m *mockStore) CleanupCompletedGames(maxAge time.Duration) (int, error) {
+	removed := 0
+	for id, g := range m.games {
+		if g.Status != game.StatusCompleted && g.Status != game.StatusDraw {
+			continue
+		}
+		if maxAge > 0 && time.Since(g.UpdatedAt) <= maxAge {
+			continue
+		}
+		delete(m.games, id)
+		removed++
+	}
+	return removed, nil
+}
+
 func mockGameHasPlayer(g *game.Game, playerID string) bool {
 	return (g.RedPlayer != nil && g.RedPlayer.ID == playerID) ||
 		(g.BlackPlayer != nil && g.BlackPlayer.ID == playerID)
@@ -752,5 +767,73 @@ func TestHandlersGetValidMoves(t *testing.T) {
 	router.ServeHTTP(badColResponse, httptest.NewRequest(http.MethodGet, "/api/v1/games/"+gameID+"/valid-moves?row=2&col=xyz", nil))
 	if badColResponse.Code != http.StatusBadRequest {
 		t.Fatalf("bad col param status = %d, want %d", badColResponse.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandlersCleanupGamesRemovesCompleted(t *testing.T) {
+	gameStore := newMockStore()
+	completed := gameForListTest(t, gameStore, "completed-game", game.StatusCompleted, time.Now().Add(-48*time.Hour), "red-c", "black-c")
+	drawn := gameForListTest(t, gameStore, "drawn-game", game.StatusDraw, time.Now().Add(-48*time.Hour), "red-d", "black-d")
+	gameForListTest(t, gameStore, "active-game", game.StatusActive, time.Now(), "red-a", "black-a")
+
+	h := New(gameStore, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodDelete, "/api/v1/games?max_age=0", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+
+	var result struct {
+		Success bool `json:"success"`
+		Cleaned int  `json:"cleaned"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode cleanup response: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("success = false, want true")
+	}
+	if result.Cleaned != 2 {
+		t.Fatalf("cleaned = %d, want 2", result.Cleaned)
+	}
+
+	// Verify completed/drawn games are gone but active remains.
+	games, err := gameStore.ListGames(store.GameFilter{})
+	if err != nil {
+		t.Fatalf("ListGames() error = %v", err)
+	}
+	if len(games) != 1 || games[0].ID != "active-game" {
+		ids := make([]string, len(games))
+		for i, g := range games {
+			ids[i] = g.ID
+		}
+		t.Fatalf("remaining games = %v, want [active-game]", ids)
+	}
+
+	// Verify completed and drawn are gone.
+	if _, err := gameStore.LoadGame(completed.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("LoadGame(completed) error = %v, want ErrNotFound", err)
+	}
+	if _, err := gameStore.LoadGame(drawn.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("LoadGame(drawn) error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestHandlersCleanupGamesInvalidMaxAge(t *testing.T) {
+	gameStore := newMockStore()
+
+	h := New(gameStore, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodDelete, "/api/v1/games?max_age=invalid", nil))
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body %s", response.Code, http.StatusBadRequest, response.Body.String())
 	}
 }

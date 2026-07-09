@@ -59,6 +59,12 @@ type ListGamesResponse struct {
 	Games   []GameSummary `json:"games"`
 }
 
+// CleanupGamesResponse reports how many completed/drawn games were removed.
+type CleanupGamesResponse struct {
+	Success bool `json:"success"`
+	Cleaned int  `json:"cleaned"`
+}
+
 // GameState is a JSON-friendly representation of a game.
 type GameState struct {
 	ID                string            `json:"id"`

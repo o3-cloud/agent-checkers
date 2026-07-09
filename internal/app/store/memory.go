@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/stackable-specs/agent-checkers/internal/app/board"
 	"github.com/stackable-specs/agent-checkers/internal/app/game"
@@ -30,6 +31,7 @@ type GameStore interface {
 	LoadPlayer(id string) (*game.Player, error)
 	AppendMove(gameID string, move game.Move) error
 	GetMoveHistory(gameID string) ([]game.Move, error)
+	CleanupCompletedGames(maxAge time.Duration) (int, error)
 }
 
 // MemoryStore stores games and players in process memory.
@@ -158,6 +160,37 @@ func (m *MemoryStore) GetMoveHistory(gameID string) ([]game.Move, error) {
 		return nil, fmt.Errorf("get move history for game %q: %w", gameID, ErrNotFound)
 	}
 	return cloneMoves(g.Moves), nil
+}
+
+// Reset clears all games and players from the in-memory store.
+// This is used by tests to ensure deterministic list results between runs.
+func (m *MemoryStore) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.games = make(map[string]*game.Game)
+	m.players = make(map[string]*game.Player)
+}
+
+// CleanupCompletedGames removes completed and drawn games older than maxAge.
+// If maxAge <= 0, all completed and drawn games are removed regardless of age.
+// Returns the number of games removed.
+func (m *MemoryStore) CleanupCompletedGames(maxAge time.Duration) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	removed := 0
+	for id, g := range m.games {
+		if g.Status != game.StatusCompleted && g.Status != game.StatusDraw {
+			continue
+		}
+		if maxAge > 0 && time.Since(g.UpdatedAt) <= maxAge {
+			continue
+		}
+		delete(m.games, id)
+		removed++
+	}
+	return removed, nil
 }
 
 func gameHasPlayer(g *game.Game, playerID string) bool {
