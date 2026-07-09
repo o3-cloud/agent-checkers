@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/stackable-specs/agent-checkers/internal/app/session"
-	"github.com/stackable-specs/agent-checkers/internal/app/store"
 	"github.com/stackable-specs/agent-checkers/src/api"
+	"github.com/stackable-specs/agent-checkers/src/config"
 	"github.com/stackable-specs/agent-checkers/src/mcp"
 )
 
@@ -34,7 +34,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	gameStore := store.NewMemoryStore()
+	gameStore := config.NewStore(config.LoadStoreConfig())
 	if *mcpMode {
 		if err := mcp.NewServer(gameStore).Run(ctx, os.Stdin, os.Stdout); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)

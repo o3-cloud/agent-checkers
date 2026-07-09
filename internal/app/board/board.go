@@ -2,6 +2,7 @@
 package board
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -190,6 +191,28 @@ func (b *Board) Clone() *Board {
 		}
 	}
 	return newBoard
+}
+
+// MarshalJSON serializes the board's private square state.
+func (b *Board) MarshalJSON() ([]byte, error) {
+	if b == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(b.squares)
+}
+
+// UnmarshalJSON restores the board's private square state.
+func (b *Board) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		b.squares = [8][8]*piece.Piece{}
+		return nil
+	}
+	var squares [8][8]*piece.Piece
+	if err := json.Unmarshal(data, &squares); err != nil {
+		return err
+	}
+	b.squares = squares
+	return nil
 }
 
 // String returns a string representation of the board for debugging.
