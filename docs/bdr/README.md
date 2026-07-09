@@ -19,6 +19,12 @@ with acceptance criteria a black-box observer can confirm.
 | [009](009-concurrent-games.md) | Concurrent Games | Accepted |
 | [010](010-openapi-specification.md) | OpenAPI Specification and Discovery | Proposed |
 | [011](011-list-active-games.md) | List Active Games | Proposed |
+| [012](012-session-persistence.md) | Session Persistence Across Page Refreshes | Proposed |
+| [013](013-modal-destructive-actions.md) | Modal Dialogs for Destructive Actions | Proposed |
+| [014](014-form-error-feedback.md) | Form Error Feedback | Proposed |
+| [015](015-king-visualization.md) | King Piece Visualization | Proposed |
+| [016](016-move-history-display.md) | Move History Display | Proposed |
+| [017](017-game-discovery-webui.md) | Game Discovery in Web UI | Proposed |
 
 ## Summary
 
@@ -44,6 +50,15 @@ with acceptance criteria a black-box observer can confirm.
 ### API Behaviors
 
 - **BDR-010**: OpenAPI 3.1 specification and discovery
+
+### Web UI Behaviors
+
+- **BDR-012**: Session persistence across page refreshes
+- **BDR-013**: Modal dialogs for destructive actions (resign)
+- **BDR-014**: Inline form error feedback
+- **BDR-015**: King piece visualization with crown symbols
+- **BDR-016**: Move history display with algebraic notation
+- **BDR-017**: Game discovery — browse waiting games in UI
 
 ## Authoring
 
