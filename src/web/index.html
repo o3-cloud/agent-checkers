@@ -56,7 +56,11 @@
     <div class="modal-content">
       <h2>Join Game</h2>
       <div id="join-error" class="form-error"></div>
-      <label>Game ID: <input type="text" id="join-game-id" placeholder="Game UUID"></label>
+      <div id="waiting-games-section">
+        <h3>Waiting Games</h3>
+        <div id="waiting-games-list"></div>
+      </div>
+      <label>Game ID: <input type="text" id="join-game-id" placeholder="Game UUID (or pick from list above)"></label>
       <label>Player Name: <input type="text" id="join-player-name" placeholder="Your name"></label>
       <label>Type:
         <select id="join-player-type">

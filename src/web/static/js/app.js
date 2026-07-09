@@ -228,6 +228,48 @@
     var errorEl = document.getElementById("join-error");
     if (errorEl) errorEl.textContent = "";
     document.getElementById("join-form").style.display = "flex";
+    App.fetchWaitingGames();
+  };
+
+  // --- Waiting Games List (BDR-017) ---
+
+  App.fetchWaitingGames = function () {
+    var listEl = document.getElementById("waiting-games-list");
+    if (!listEl) return;
+    listEl.innerHTML = "<p class="loading-text">Loading...</p>";
+    App._api("GET", "/api/v1/games?status=waiting", null).then(function (data) {
+      if (data._status !== 200) {
+        listEl.innerHTML = "<p class="empty-text">Unable to load games</p>";
+        return;
+      }
+      var games = data.games || [];
+      if (games.length === 0) {
+        listEl.innerHTML = "<p class="empty-text">No games waiting — create a new one!</p>";
+        return;
+      }
+      listEl.innerHTML = "";
+      for (var i = 0; i < games.length; i++) {
+        var g = games[i];
+        var entry = document.createElement("div");
+        entry.className = "waiting-game-entry";
+        var redName = (g.red_player && g.red_player.name) ? g.red_player.name : "Unknown";
+        var gameIdShort = g.game_id ? g.game_id.substring(0, 8) + "..." : "?";
+        entry.innerHTML = "<span class="game-id-short">" + gameIdShort + "</span> <span class="red-player">" + redName + "</span>";
+        (function (fullId) {
+          entry.addEventListener("click", function () {
+            var gameInput = document.getElementById("join-game-id");
+            if (gameInput) {
+              gameInput.value = fullId;
+              var nameInput = document.getElementById("join-player-name");
+              if (nameInput) nameInput.focus();
+            }
+          });
+        })(g.game_id);
+        listEl.appendChild(entry);
+      }
+    }).catch(function () {
+      listEl.innerHTML = "<p class="empty-text">Unable to load games</p>";
+    });
   };
 
   App.hideJoinForm = function () {
@@ -430,29 +472,72 @@
 
   // --- Move history ---
 
+  // Convert (row, col) to algebraic notation (e.g., 2,1 -> "b3")
+  App._toAlgebraic = function (row, col) {
+    var colChar = String.fromCharCode(97 + col); // 'a' = 97
+    return colChar + (row + 1);
+  };
+
+  // Determine player color for a move based on player ID
+  App._getPlayerColor = function (playerId) {
+    if (App.gameState) {
+      if (App.gameState.red_player && App.gameState.red_player.id === playerId) {
+        return "Red";
+      }
+      if (App.gameState.black_player && App.gameState.black_player.id === playerId) {
+        return "Black";
+      }
+    }
+    return "?";
+  };
+
   App.fetchMoveHistory = function () {
     if (!App.gameID) return;
     App._api("GET", "/api/v1/games/" + App.gameID + "/moves", null).then(function (data) {
       if (data._status !== 200) return;
       var list = document.getElementById("move-history");
+      if (!list) return;
       list.innerHTML = "";
       var moves = data.moves || [];
       for (var i = 0; i < moves.length; i++) {
         var m = moves[i];
         var li = document.createElement("li");
-        var fromStr = m.from ? m.from.row + "," + m.from.col : "?";
-        var toStr = m.to ? m.to.row + "," + m.to.col : "?";
-        var capturedCount = m.captured ? m.captured.length : 0;
-        var txt = "#" + (i + 1) + " " + fromStr + " → " + toStr;
+        var moveNum = i + 1;
+        var color = App._getPlayerColor(m.player_id);
+
+        // Build algebraic notation for from/to
+        var fromStr = "?";
+        var toStr = "?";
+        if (m.from && typeof m.from.row === "number" && typeof m.from.col === "number") {
+          fromStr = App._toAlgebraic(m.from.row, m.from.col);
+        }
+        if (m.to && typeof m.to.row === "number" && typeof m.to.col === "number") {
+          toStr = App._toAlgebraic(m.to.row, m.to.col);
+        }
+
+        // Build move text: "1. Red: b3 → a4"
+        var txt = moveNum + ". " + color + ": " + fromStr;
+
+        // Use × for captures, → for regular moves
+        var capturedCount = (m.captured && Array.isArray(m.captured)) ? m.captured.length : 0;
         if (capturedCount > 0) {
-          txt += " (captured " + capturedCount + ")";
+          txt += " × " + toStr;
+          txt += " (capture)";
+        } else {
+          txt += " → " + toStr;
         }
+
+        // Mark king promotions
         if (m.promoted) {
-          txt += " ★ promoted";
+          txt += " ♚";
         }
+
         li.textContent = txt;
         list.appendChild(li);
       }
+
+      // Auto-scroll to the latest move
+      list.scrollTop = list.scrollHeight;
     });
   };
 

@@ -129,9 +129,14 @@ header h1 {
 }
 
 .piece.king::before {
-  content: "♛";
+  content: "♚";
   font-size: clamp(14px, 4vmin, 28px);
   color: gold;
+}
+
+.piece.king {
+  border: 3px solid gold;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
 }
 
 #controls {
@@ -261,6 +266,56 @@ header h1 {
 
 .danger-btn:hover {
   background: #922b21 !important;
+}
+
+#waiting-games-section {
+  margin-bottom: 10px;
+}
+
+#waiting-games-section h3 {
+  font-size: 1em;
+  margin-bottom: 6px;
+}
+
+#waiting-games-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.waiting-game-entry {
+  padding: 6px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.waiting-game-entry:hover {
+  background: rgba(233, 69, 96, 0.2);
+}
+
+.waiting-game-entry:last-child {
+  border-bottom: none;
+}
+
+.game-id-short {
+  color: #aaa;
+  font-size: 0.85em;
+}
+
+.red-player {
+  font-weight: bold;
+}
+
+.empty-text, .loading-text {
+  padding: 8px;
+  font-size: 0.85em;
+  color: #aaa;
+  text-align: center;
 }
 
 @media (max-width: 768px) {
