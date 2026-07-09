@@ -13,6 +13,123 @@
   App.playerColor = null;
   App.gameState = null;
   App.ws = null;
+  App.sessionStorageKey = "agent-checkers-session";
+
+  // --- Session persistence ---
+
+  App._isEndedStatus = function (status) {
+    return status === "completed" || status === "draw" || status === "resigned";
+  };
+
+  App._isGameEnded = function () {
+    return App.gameState && App._isEndedStatus(App.gameState.status);
+  };
+
+  App._setStatusText = function (text) {
+    var bar = document.getElementById("status-bar");
+    if (bar) {
+      bar.textContent = text;
+    }
+  };
+
+  App.saveSession = function () {
+    if (!App.gameID || !App.playerID || !App.sessionToken || !App.playerColor) return;
+
+    try {
+      localStorage.setItem(
+        App.sessionStorageKey,
+        JSON.stringify({
+          gameID: App.gameID,
+          playerID: App.playerID,
+          sessionToken: App.sessionToken,
+          playerColor: App.playerColor,
+        })
+      );
+    } catch (e) {
+      // localStorage may be unavailable in private browsing or restricted contexts.
+    }
+  };
+
+  App.loadSession = function () {
+    var raw;
+    var session;
+
+    try {
+      raw = localStorage.getItem(App.sessionStorageKey);
+      if (!raw) return false;
+      session = JSON.parse(raw);
+    } catch (e) {
+      App.clearSession();
+      return false;
+    }
+
+    if (!session || !session.gameID || !session.playerID || !session.sessionToken || !session.playerColor) {
+      App.clearSession();
+      return false;
+    }
+
+    App.gameID = session.gameID;
+    App.playerID = session.playerID;
+    App.sessionToken = session.sessionToken;
+    App.playerColor = session.playerColor;
+    return true;
+  };
+
+  App.clearSession = function () {
+    try {
+      localStorage.removeItem(App.sessionStorageKey);
+    } catch (e) {
+      // localStorage may be unavailable in private browsing or restricted contexts.
+    }
+  };
+
+  App.hasStoredSession = function () {
+    var raw;
+    var session;
+
+    try {
+      raw = localStorage.getItem(App.sessionStorageKey);
+      if (!raw) return false;
+      session = JSON.parse(raw);
+    } catch (e) {
+      App.clearSession();
+      return false;
+    }
+
+    if (!session || !session.gameID || !session.playerID || !session.sessionToken || !session.playerColor) {
+      App.clearSession();
+      return false;
+    }
+    return true;
+  };
+
+  App.init = function () {
+    BoardUI.onSquareClick = App.selectSquare;
+
+    if (!App.hasStoredSession()) {
+      App._setStatusText("No game loaded");
+      BoardUI.render(null);
+      return;
+    }
+
+    App._setStatusText("Reconnecting...");
+    if (!App.loadSession()) {
+      App._setStatusText("No game loaded");
+      BoardUI.render(null);
+      return;
+    }
+
+    App.loadGame(App.gameID, true).then(function () {
+      if (App.gameState && !App._isGameEnded()) {
+        App.connectWebSocket();
+      }
+    }).catch(function () {
+      App.clearSession();
+      App.gameID = null;
+      App.gameState = null;
+      App.refreshUI();
+    });
+  };
 
   // --- API helpers ---
 
@@ -57,6 +174,7 @@
         App.sessionToken = data.session.token;
       }
       App.gameState = data.game_state;
+      App.saveSession();
       App.hideNewGameForm();
       App.refreshUI();
       App.connectWebSocket();
@@ -96,6 +214,7 @@
         App.sessionToken = data.session.token;
       }
       App.gameState = data.game_state;
+      App.saveSession();
       App.hideJoinForm();
       App.refreshUI();
       App.connectWebSocket();
@@ -104,15 +223,22 @@
 
   // --- Load Game ---
 
-  App.loadGame = function (gameID) {
+  App.loadGame = function (gameID, suppressAlert) {
     return App._api("GET", "/api/v1/games/" + gameID, null).then(function (data) {
       if (data._status !== 200) {
-        alert("Failed to load game: " + (data.error || "unknown"));
+        App.clearSession();
+        App.gameID = null;
+        App.gameState = null;
+        if (!suppressAlert) {
+          alert("Failed to load game: " + (data.error || "unknown"));
+        }
+        App.refreshUI();
         return;
       }
       App.gameID = data.game_id;
       App.gameState = data.game_state;
       App.refreshUI();
+      return data;
     });
   };
 
@@ -198,6 +324,7 @@
         return;
       }
       App.gameState = data.game_state;
+      App.clearSession();
       App.refreshUI();
     });
   };
@@ -214,6 +341,10 @@
     var status = App.gameState.status;
     var turn = App.gameState.current_turn;
     var result = App.gameState.result;
+
+    if (App._isEndedStatus(status)) {
+      App.clearSession();
+    }
 
     if (status === "waiting") {
       bar.textContent = "Waiting for opponent...";
@@ -324,6 +455,7 @@
     });
 
     App.ws.on("game_ended", function (payload) {
+      App.clearSession();
       App.loadGame(App.gameID);
     });
 
