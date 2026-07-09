@@ -527,13 +527,13 @@ func TestMakeMoveErrors(t *testing.T) {
 		name      string
 		setupGame func(t *testing.T) *Game
 		playerID  string
-		shouldErr bool
+		wantErr   string
 	}{
 		{
 			name:      "game not active",
 			setupGame: func(t *testing.T) *Game { return NewGame() }, // StatusWaiting
 			playerID:  "p1",
-			shouldErr: true,
+			wantErr:   "game is not active",
 		},
 		{
 			name: "player not in game",
@@ -543,8 +543,8 @@ func TestMakeMoveErrors(t *testing.T) {
 				addPlayer(t, g, &Player{ID: "p2", Name: "Bob", Type: "human"})
 				return g
 			},
-			playerID:  "p3",
-			shouldErr: true,
+			playerID: "p3",
+			wantErr:  "player not in this game",
 		},
 		{
 			name: "wrong turn",
@@ -554,8 +554,8 @@ func TestMakeMoveErrors(t *testing.T) {
 				addPlayer(t, g, &Player{ID: "p2", Name: "Bob", Type: "human"})
 				return g
 			},
-			playerID:  "p2", // Black, but it's red's turn
-			shouldErr: true,
+			playerID: "p2", // Black, but it's red's turn
+			wantErr:  "it is not black's turn",
 		},
 	}
 
@@ -563,11 +563,14 @@ func TestMakeMoveErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := tt.setupGame(t)
 			err := g.MakeMove(tt.playerID, board.Position{Row: 2, Col: 3}, board.Position{Row: 3, Col: 4})
-			if tt.shouldErr && err == nil {
+			if tt.wantErr != "" && err == nil {
 				t.Error("MakeMove() expected error, got nil")
 			}
-			if !tt.shouldErr && err != nil {
+			if tt.wantErr == "" && err != nil {
 				t.Errorf("MakeMove() unexpected error: %v", err)
+			}
+			if err != nil && err.Error() != tt.wantErr {
+				t.Errorf("MakeMove() error = %q, want %q", err.Error(), tt.wantErr)
 			}
 		})
 	}

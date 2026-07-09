@@ -169,7 +169,7 @@ func (g *Game) MakeMove(playerID string, from, to board.Position) error {
 	}
 
 	if player.Color != g.CurrentTurn {
-		return fmt.Errorf("it is not %s's turn", g.CurrentTurn)
+		return fmt.Errorf("it is not %s's turn", player.Color)
 	}
 
 	// Note: Actual move validation will be done by rules package
