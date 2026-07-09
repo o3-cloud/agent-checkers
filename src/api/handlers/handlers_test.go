@@ -302,6 +302,51 @@ func TestHandlersMakeMoveRecordsHistory(t *testing.T) {
 	}
 }
 
+func TestHandlersMakeMoveReturnsAutomaticDrawResult(t *testing.T) {
+	store := newMockStore()
+	h := New(store, nil)
+	router := chi.NewRouter()
+	h.RegisterRoutes(router)
+
+	g := game.NewGame()
+	red := &game.Player{ID: "red-player", Name: "Alice", Type: "human"}
+	black := &game.Player{ID: "black-player", Name: "Bob", Type: "human"}
+	if err := g.AddPlayer(red); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddPlayer(black); err != nil {
+		t.Fatal(err)
+	}
+	g.MovesSinceCapture = 99
+	if err := store.SaveGame(g); err != nil {
+		t.Fatal(err)
+	}
+
+	body := bytes.NewBufferString(`{"player_id":"red-player","from":{"row":2,"col":1},"to":{"row":3,"col":0}}`)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/games/"+g.ID+"/moves", body))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("move status = %d, want %d, body %s", response.Code, http.StatusOK, response.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode move response: %v", err)
+	}
+	state := payload["game_state"].(map[string]any)
+	if state["status"] != "draw" {
+		t.Fatalf("game status = %v, want draw", state["status"])
+	}
+	result := state["result"].(map[string]any)
+	if result["reason"] != "fifty_move_rule" {
+		t.Fatalf("draw reason = %v, want fifty_move_rule", result["reason"])
+	}
+	if result["winner"] != "" {
+		t.Fatalf("draw winner = %v, want empty", result["winner"])
+	}
+}
+
 func TestHandlersBroadcastGameStartedWhenSecondPlayerJoins(t *testing.T) {
 	store := newMockStore()
 	broadcaster := &recordingBroadcaster{}

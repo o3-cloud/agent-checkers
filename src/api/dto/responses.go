@@ -61,15 +61,18 @@ type ListGamesResponse struct {
 
 // GameState is a JSON-friendly representation of a game.
 type GameState struct {
-	ID          string          `json:"id"`
-	Board       [][]interface{} `json:"board"`
-	RedPlayer   *PlayerResponse `json:"red_player,omitempty"`
-	BlackPlayer *PlayerResponse `json:"black_player,omitempty"`
-	CurrentTurn string          `json:"current_turn"`
-	Status      string          `json:"status"`
-	Result      *game.Result    `json:"result,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID                string            `json:"id"`
+	Board             [][]interface{}   `json:"board"`
+	RedPlayer         *PlayerResponse   `json:"red_player,omitempty"`
+	BlackPlayer       *PlayerResponse   `json:"black_player,omitempty"`
+	CurrentTurn       string            `json:"current_turn"`
+	Status            string            `json:"status"`
+	MovesSinceCapture int               `json:"moves_since_capture"`
+	PositionHistory   []string          `json:"position_history"`
+	MoveHistory       []MoveResponseDTO `json:"move_history"`
+	Result            *game.Result      `json:"result,omitempty"`
+	CreatedAt         time.Time         `json:"created_at"`
+	UpdatedAt         time.Time         `json:"updated_at"`
 }
 
 // PlayerResponse is a JSON-friendly player representation.
@@ -102,15 +105,18 @@ func NewGameState(g *game.Game) *GameState {
 		return nil
 	}
 	return &GameState{
-		ID:          g.ID,
-		Board:       g.Board.ToJSON(),
-		RedPlayer:   NewPlayerResponse(g.RedPlayer),
-		BlackPlayer: NewPlayerResponse(g.BlackPlayer),
-		CurrentTurn: g.CurrentTurn.String(),
-		Status:      g.Status.String(),
-		Result:      g.Result,
-		CreatedAt:   g.CreatedAt,
-		UpdatedAt:   g.UpdatedAt,
+		ID:                g.ID,
+		Board:             g.Board.ToJSON(),
+		RedPlayer:         NewPlayerResponse(g.RedPlayer),
+		BlackPlayer:       NewPlayerResponse(g.BlackPlayer),
+		CurrentTurn:       g.CurrentTurn.String(),
+		Status:            g.Status.String(),
+		MovesSinceCapture: g.MovesSinceCapture,
+		PositionHistory:   append([]string(nil), g.PositionHistory...),
+		MoveHistory:       NewMoveHistoryResponse(g.Moves),
+		Result:            g.Result,
+		CreatedAt:         g.CreatedAt,
+		UpdatedAt:         g.UpdatedAt,
 	}
 }
 

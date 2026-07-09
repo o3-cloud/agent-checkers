@@ -45,6 +45,12 @@ func TestNewGame(t *testing.T) {
 	if len(g.Moves) != 0 {
 		t.Errorf("NewGame() Moves = %v, want empty", g.Moves)
 	}
+	if g.MovesSinceCapture != 0 {
+		t.Errorf("NewGame() MovesSinceCapture = %d, want 0", g.MovesSinceCapture)
+	}
+	if len(g.PositionHistory) != 1 {
+		t.Errorf("NewGame() PositionHistory length = %d, want 1", len(g.PositionHistory))
+	}
 
 	// Verify initial board has 12 pieces each
 	redCount, blackCount := g.Board.CountPieces()
@@ -169,6 +175,47 @@ func TestRecordMove(t *testing.T) {
 	if g.Moves[0].Timestamp.IsZero() {
 		t.Error("RecordMove() should set timestamp")
 	}
+	if g.MovesSinceCapture != 1 {
+		t.Errorf("RecordMove() MovesSinceCapture = %d, want 1", g.MovesSinceCapture)
+	}
+	if len(g.PositionHistory) != 2 {
+		t.Errorf("RecordMove() PositionHistory length = %d, want 2", len(g.PositionHistory))
+	}
+
+	capture := Move{
+		From:     board.Position{Row: 5, Col: 0},
+		To:       board.Position{Row: 3, Col: 2},
+		PlayerID: "p2",
+		Captured: []board.Position{{Row: 4, Col: 1}},
+	}
+	g.RecordMove(capture)
+
+	if g.MovesSinceCapture != 0 {
+		t.Errorf("RecordMove() after capture MovesSinceCapture = %d, want 0", g.MovesSinceCapture)
+	}
+}
+
+func TestSwitchTurnUpdatesLatestPositionHistory(t *testing.T) {
+	g := NewGame()
+	g.Board = board.NewEmpty()
+	g.Board.SetPiece(board.Position{Row: 2, Col: 1}, piece.New("r1", piece.Red))
+	g.Board.SetPiece(board.Position{Row: 5, Col: 0}, piece.New("b1", piece.Black))
+	g.PositionHistory = nil
+
+	g.RecordMove(Move{
+		From:     board.Position{Row: 2, Col: 1},
+		To:       board.Position{Row: 3, Col: 2},
+		PlayerID: "p1",
+	})
+	beforeSwitchLen := len(g.PositionHistory)
+	g.SwitchTurn()
+
+	if len(g.PositionHistory) != beforeSwitchLen {
+		t.Errorf("SwitchTurn() PositionHistory length = %d, want %d", len(g.PositionHistory), beforeSwitchLen)
+	}
+	if got := g.PositionHistory[len(g.PositionHistory)-1]; got != boardHash(g) {
+		t.Error("SwitchTurn() did not update latest position hash for side to move")
+	}
 }
 
 func TestIsGameOver(t *testing.T) {
@@ -272,6 +319,78 @@ func TestIsGameOver_NoLegalMoves(t *testing.T) {
 	}
 }
 
+func TestIsDraw_FiftyMoveRule(t *testing.T) {
+	g := NewGame()
+	g.MovesSinceCapture = 100
+
+	draw, reason := g.IsDraw()
+
+	if !draw {
+		t.Fatal("IsDraw() = false, want true")
+	}
+	if reason != "fifty_move_rule" {
+		t.Errorf("IsDraw() reason = %v, want fifty_move_rule", reason)
+	}
+}
+
+func TestIsDraw_ThreefoldRepetition(t *testing.T) {
+	g := NewGame()
+	position := boardHash(g)
+	g.PositionHistory = []string{position, "different", position, position}
+
+	draw, reason := g.IsDraw()
+
+	if !draw {
+		t.Fatal("IsDraw() = false, want true")
+	}
+	if reason != "threefold_repetition" {
+		t.Errorf("IsDraw() reason = %v, want threefold_repetition", reason)
+	}
+}
+
+func TestIsDraw_InsufficientMaterial(t *testing.T) {
+	b := board.NewEmpty()
+	redKing := piece.New("r1", piece.Red)
+	redKing.Promote()
+	blackKing := piece.New("b1", piece.Black)
+	blackKing.Promote()
+	redKing2 := piece.New("r2", piece.Red)
+	redKing2.Promote()
+	blackKing2 := piece.New("b2", piece.Black)
+	blackKing2.Promote()
+	b.SetPiece(board.Position{Row: 0, Col: 1}, redKing)
+	b.SetPiece(board.Position{Row: 7, Col: 0}, blackKing)
+	b.SetPiece(board.Position{Row: 0, Col: 3}, redKing2)
+	b.SetPiece(board.Position{Row: 7, Col: 2}, blackKing2)
+	g := &Game{Board: b, Status: StatusActive, CurrentTurn: piece.Red}
+
+	draw, reason := g.IsDraw()
+
+	if !draw {
+		t.Fatal("IsDraw() = false, want true")
+	}
+	if reason != "insufficient_material" {
+		t.Errorf("IsDraw() reason = %v, want insufficient_material", reason)
+	}
+}
+
+func TestIsGameOver_DrawResult(t *testing.T) {
+	g := NewGame()
+	g.MovesSinceCapture = 100
+
+	over, result := g.IsGameOver()
+
+	if !over {
+		t.Fatal("IsGameOver() = false, want true")
+	}
+	if result.Winner != "" {
+		t.Errorf("IsGameOver() draw winner = %q, want empty", result.Winner)
+	}
+	if result.Reason != "fifty_move_rule" {
+		t.Errorf("IsGameOver() reason = %v, want fifty_move_rule", result.Reason)
+	}
+}
+
 func TestEndGame(t *testing.T) {
 	g := NewGame()
 	result := &Result{Winner: "red", Reason: "resignation"}
@@ -280,6 +399,20 @@ func TestEndGame(t *testing.T) {
 
 	if g.Status != StatusCompleted {
 		t.Errorf("EndGame() Status = %v, want Completed", g.Status)
+	}
+	if g.Result != result {
+		t.Error("EndGame() Result not set")
+	}
+}
+
+func TestEndGame_DrawResultSetsStatusDraw(t *testing.T) {
+	g := NewGame()
+	result := &Result{Reason: "threefold_repetition"}
+
+	g.EndGame(result)
+
+	if g.Status != StatusDraw {
+		t.Errorf("EndGame() Status = %v, want Draw", g.Status)
 	}
 	if g.Result != result {
 		t.Error("EndGame() Result not set")
@@ -362,6 +495,18 @@ func TestClone(t *testing.T) {
 	}
 	if clone.Status != g.Status {
 		t.Error("Clone() Status mismatch")
+	}
+	if clone.MovesSinceCapture != g.MovesSinceCapture {
+		t.Error("Clone() MovesSinceCapture mismatch")
+	}
+	if len(clone.PositionHistory) != len(g.PositionHistory) {
+		t.Error("Clone() PositionHistory length mismatch")
+	}
+	if len(clone.PositionHistory) > 0 {
+		clone.PositionHistory[0] = "mutated"
+		if g.PositionHistory[0] == "mutated" {
+			t.Error("Clone() PositionHistory should be independent")
+		}
 	}
 
 	// Verify board is independent

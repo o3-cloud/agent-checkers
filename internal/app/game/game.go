@@ -85,21 +85,23 @@ type Player struct {
 
 // Game represents a checkers game session.
 type Game struct {
-	ID          string       `json:"id"`
-	Board       *board.Board `json:"board"`
-	RedPlayer   *Player      `json:"red_player,omitempty"`
-	BlackPlayer *Player      `json:"black_player,omitempty"`
-	CurrentTurn piece.Color  `json:"current_turn"`
-	Status      Status       `json:"status"`
-	Moves       []Move       `json:"moves"`
-	Result      *Result      `json:"result,omitempty"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	ID                string       `json:"id"`
+	Board             *board.Board `json:"board"`
+	RedPlayer         *Player      `json:"red_player,omitempty"`
+	BlackPlayer       *Player      `json:"black_player,omitempty"`
+	CurrentTurn       piece.Color  `json:"current_turn"`
+	Status            Status       `json:"status"`
+	Moves             []Move       `json:"moves"`
+	MovesSinceCapture int          `json:"moves_since_capture"`
+	PositionHistory   []string     `json:"position_history"`
+	Result            *Result      `json:"result,omitempty"`
+	CreatedAt         time.Time    `json:"created_at"`
+	UpdatedAt         time.Time    `json:"updated_at"`
 }
 
 // NewGame creates a new game with an initial board position.
 func NewGame() *Game {
-	return &Game{
+	g := &Game{
 		ID:          uuid.New().String(),
 		Board:       board.New(),
 		CurrentTurn: piece.Red, // Red always moves first
@@ -108,6 +110,8 @@ func NewGame() *Game {
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
+	g.recordPosition()
+	return g
 }
 
 // AddPlayer adds a player to the game.
@@ -180,6 +184,7 @@ func (g *Game) SwitchTurn() {
 	} else {
 		g.CurrentTurn = piece.Red
 	}
+	g.replaceLatestPosition()
 	g.UpdatedAt = time.Now()
 }
 
@@ -187,12 +192,22 @@ func (g *Game) SwitchTurn() {
 func (g *Game) RecordMove(m Move) {
 	m.Timestamp = time.Now()
 	g.Moves = append(g.Moves, m)
+	if len(m.Captured) > 0 {
+		g.MovesSinceCapture = 0
+	} else {
+		g.MovesSinceCapture++
+	}
+	g.recordPosition()
 	g.UpdatedAt = time.Now()
 }
 
 // IsGameOver checks if the game has ended.
 // Returns true if game is over and the result if applicable.
 func (g *Game) IsGameOver() (bool, *Result) {
+	if draw, reason := g.IsDraw(); draw {
+		return true, &Result{Reason: reason}
+	}
+
 	redCount, blackCount := g.Board.CountPieces()
 
 	// Win by capturing all opponent pieces
@@ -208,6 +223,102 @@ func (g *Game) IsGameOver() (bool, *Result) {
 	}
 
 	return false, nil
+}
+
+// IsDraw checks if the game has reached an automatic draw condition.
+func (g *Game) IsDraw() (bool, string) {
+	if g.MovesSinceCapture >= 100 {
+		return true, "fifty_move_rule"
+	}
+
+	if g.hasThreefoldRepetition() {
+		return true, "threefold_repetition"
+	}
+
+	if g.hasInsufficientMaterial() {
+		return true, "insufficient_material"
+	}
+
+	return false, ""
+}
+
+func (g *Game) hasThreefoldRepetition() bool {
+	positions := make(map[string]int, len(g.PositionHistory)+1)
+	for _, position := range g.PositionHistory {
+		positions[position]++
+		if positions[position] >= 3 {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *Game) hasInsufficientMaterial() bool {
+	redKings, blackKings := 0, 0
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			p := g.Board.GetPiece(board.Position{Row: row, Col: col})
+			if p == nil {
+				continue
+			}
+			if !p.IsKing {
+				return false
+			}
+			switch p.Color {
+			case piece.Red:
+				redKings++
+			case piece.Black:
+				blackKings++
+			}
+		}
+	}
+
+	return redKings > 0 && blackKings > 0 &&
+		!g.hasCapture(piece.Red) && !g.hasCapture(piece.Black)
+}
+
+func (g *Game) recordPosition() {
+	g.PositionHistory = append(g.PositionHistory, boardHash(g))
+}
+
+func (g *Game) replaceLatestPosition() {
+	if len(g.PositionHistory) == 0 {
+		g.recordPosition()
+		return
+	}
+	g.PositionHistory[len(g.PositionHistory)-1] = boardHash(g)
+}
+
+func boardHash(g *Game) string {
+	var builder strings.Builder
+	builder.WriteString(g.CurrentTurn.String())
+	builder.WriteByte('|')
+
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			p := g.Board.GetPiece(board.Position{Row: row, Col: col})
+			if p == nil {
+				builder.WriteByte('.')
+				continue
+			}
+
+			switch p.Color {
+			case piece.Red:
+				builder.WriteByte('r')
+			case piece.Black:
+				builder.WriteByte('b')
+			default:
+				builder.WriteByte('?')
+			}
+			if p.IsKing {
+				builder.WriteByte('K')
+			} else {
+				builder.WriteByte('M')
+			}
+		}
+	}
+
+	return builder.String()
 }
 
 func (g *Game) hasLegalMove(color piece.Color) bool {
@@ -312,7 +423,11 @@ func opponent(color piece.Color) piece.Color {
 
 // EndGame ends the game with the given result.
 func (g *Game) EndGame(result *Result) {
-	g.Status = StatusCompleted
+	if result != nil && result.Winner == "" {
+		g.Status = StatusDraw
+	} else {
+		g.Status = StatusCompleted
+	}
 	g.Result = result
 	g.UpdatedAt = time.Now()
 }
@@ -382,13 +497,15 @@ func (g *Game) Resign(playerID string) error {
 // Clone creates a deep copy of the game.
 func (g *Game) Clone() *Game {
 	clone := &Game{
-		ID:          g.ID,
-		Board:       g.Board.Clone(),
-		CurrentTurn: g.CurrentTurn,
-		Status:      g.Status,
-		Moves:       make([]Move, len(g.Moves)),
-		CreatedAt:   g.CreatedAt,
-		UpdatedAt:   g.UpdatedAt,
+		ID:                g.ID,
+		Board:             g.Board.Clone(),
+		CurrentTurn:       g.CurrentTurn,
+		Status:            g.Status,
+		Moves:             make([]Move, len(g.Moves)),
+		MovesSinceCapture: g.MovesSinceCapture,
+		PositionHistory:   append([]string(nil), g.PositionHistory...),
+		CreatedAt:         g.CreatedAt,
+		UpdatedAt:         g.UpdatedAt,
 	}
 
 	for i, move := range g.Moves {
